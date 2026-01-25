@@ -1,1 +1,2 @@
-singleton HomeAssistantService 1.0 HomeAssistantService.qml
+singleton HomeAssistantService 1.0 services/HomeAssistantService.qml
+singleton HassConstants 1.0 components/HassConstants.qml
