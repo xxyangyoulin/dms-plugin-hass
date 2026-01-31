@@ -47,14 +47,17 @@ Singleton {
 
         // Update cached entity immediately
         if (cachedAllEntities) {
-            for (var i = 0; i < cachedAllEntities.length; i++) {
-                if (cachedAllEntities[i].entityId === entityId) {
-                    // Update friendly name in cache
-                    cachedAllEntities[i].friendlyName = newName; 
+            var newCached = Array.from(cachedAllEntities);
+            for (var i = 0; i < newCached.length; i++) {
+                if (newCached[i].entityId === entityId) {
+                    // Create a new object to ensure property changes are detected
+                    newCached[i] = Object.assign({}, newCached[i], { friendlyName: newName });
                     break;
                 }
             }
-            reprocessMonitoredEntities(); // This pushes changes to global vars
+            cachedAllEntities = newCached;
+            PluginService.setGlobalVar(pluginId, "allEntities", newCached);
+            reprocessMonitoredEntities(); // This pushes changes to global "entities" var
         }
         
         // If we really want to reset to original, we might need to fetch the entity again or store original name.

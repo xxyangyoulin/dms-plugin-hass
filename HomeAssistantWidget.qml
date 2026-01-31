@@ -85,7 +85,7 @@ PluginComponent {
         const entities = globalEntities.value || [];
         
         // Fast path: check if any changes at all (quick hash check)
-        const newHash = entities.map(e => `${e.entityId}:${e.state}:${e.lastUpdated}`).join(",");
+        const newHash = entities.map(e => `${e.entityId}:${e.state}:${e.friendlyName}:${e.lastUpdated}`).join(",");
         if (newHash === _lastSyncHash && monitoredListModel.count === entities.length) {
             return;
         }
