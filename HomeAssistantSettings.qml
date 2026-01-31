@@ -28,12 +28,10 @@ PluginSettings {
         color: Theme.outlineVariant
     }
 
-
-
     ToggleSetting {
         settingKey: "showAttributes"
         label: "Show Detailed Attributes"
         description: "Display additional entity attributes when expanding entities in the widget"
-        defaultValue: true
+        defaultValue: false
     }
 }

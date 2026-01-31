@@ -25,6 +25,10 @@ PluginComponent {
 
     property bool isEditing: false // Global edit mode state
 
+    Ref {
+        service: HomeAssistantService
+    }
+
     function cleanupPinnedEntities() {
         var entities = globalEntities.value || [];
         var entityIds = entities.map(function(e) { return e.entityId; });
@@ -668,6 +672,44 @@ PluginComponent {
                     visible: globalEntities.value.length === 0 && !root.showEntityBrowser
                     haAvailable: globalHaAvailable.value
                     entityCount: globalEntityCount.value
+                }
+            }
+
+            // Dependency Error Overlay
+            Rectangle {
+                anchors.fill: parent
+                z: 999
+                color: Theme.surface
+                visible: HomeAssistantService.missingDependency
+
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    spacing: Theme.spacingM
+
+                    DankIcon {
+                        name: "error"
+                        size: 48
+                        color: Theme.error
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
+                    StyledText {
+                        text: I18n.tr("Missing Dependency", "Error title")
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.weight: Font.Bold
+                        color: Theme.error
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
+                    StyledText {
+                        text: I18n.tr("Please install 'qt6-websockets' package and then RESTART DMS to use this plugin.", "Error description")
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: Theme.surfaceText
+                        Layout.alignment: Qt.AlignHCenter
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.maximumWidth: parent.width - Theme.spacingXL * 2
+                        wrapMode: Text.WordWrap
+                    }
                 }
             }
 

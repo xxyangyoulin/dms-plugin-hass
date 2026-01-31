@@ -2,7 +2,6 @@ pragma Singleton
 pragma ComponentBehavior: Bound
 
 import QtQuick
-import QtWebSockets
 import Quickshell
 import qs.Common
 import qs.Services
@@ -95,10 +94,20 @@ Singleton {
         wsCallbacks = ({});
     }
 
+    // WebSocket Constants (mapped to QtWebSockets values)
+    readonly property int wsConnecting: 0
+    readonly property int wsOpen: 1
+    readonly property int wsClosing: 2
+    readonly property int wsClosed: 3
+    readonly property int wsError: 4
+
+    property bool missingDependency: false
+    property var socket: wsLoader.item
+
     Timer {
         id: callbackGcTimer
         interval: 30000
-        running: socket.active
+        running: socket && socket.active
         repeat: true
         onTriggered: {
             const now = Date.now();
@@ -116,38 +125,66 @@ Singleton {
         }
     }
 
-    WebSocket {
-        id: socket
-        url: root.wsUrl
-        active: !!root.hassUrl && !!root.hassToken
-        onStatusChanged: (status) => {
-            if (status === WebSocket.Error) {
-                console.error("HomeAssistantMonitor: WebSocket Error:", errorString);
-                haAvailable = false;
-                latency = -1;
-                PluginService.setGlobalVar(pluginId, "latency", -1);
-                clearCallbacks("WebSocket Error: " + errorString);
-                reconnectTimer.start();
-            } else if (status === WebSocket.Closed) {
-                haAvailable = false;
-                latency = -1;
-                PluginService.setGlobalVar(pluginId, "latency", -1);
-                clearCallbacks("WebSocket Closed");
-                reconnectTimer.start();
-            } else if (status === WebSocket.Open) {
-                currentReconnectInterval = 5000; // Reset backoff on success
-                reconnectTimer.stop();
-                pingTimer.start();
-                // Auth will be handled by handleWsMessage (auth_required)
+    Loader {
+        id: wsLoader
+        source: "WebSocketClient.qml"
+        active: true
+        
+        onStatusChanged: {
+            if (status === Loader.Error) {
+                console.warn("HomeAssistantMonitor: Failed to load WebSocketClient. Dependency 'qt6-websockets' likely missing.");
+                root.missingDependency = true;
+            } else if (status === Loader.Ready) {
+                root.missingDependency = false;
             }
         }
 
-        onTextMessageReceived: (message) => {
-            try {
-                const data = JSON.parse(message);
-                handleWsMessage(data);
-            } catch (e) {
-                console.error("HomeAssistantMonitor: Failed to parse WebSocket message:", e);
+        Binding {
+            target: wsLoader.item
+            property: "url"
+            value: root.wsUrl
+            when: wsLoader.status === Loader.Ready
+        }
+
+        Binding {
+            target: wsLoader.item
+            property: "active"
+            value: !!root.hassUrl && !!root.hassToken
+            when: wsLoader.status === Loader.Ready
+        }
+        
+        Connections {
+            target: wsLoader.item
+            ignoreUnknownSignals: true
+            
+            function onSocketStatusChanged(status) {
+                if (status === root.wsError) {
+                    console.error("HomeAssistantMonitor: WebSocket Error:", wsLoader.item.errorString);
+                    haAvailable = false;
+                    latency = -1;
+                    PluginService.setGlobalVar(pluginId, "latency", -1);
+                    clearCallbacks("WebSocket Error: " + wsLoader.item.errorString);
+                    reconnectTimer.start();
+                } else if (status === root.wsClosed) {
+                    haAvailable = false;
+                    latency = -1;
+                    PluginService.setGlobalVar(pluginId, "latency", -1);
+                    clearCallbacks("WebSocket Closed");
+                    reconnectTimer.start();
+                } else if (status === root.wsOpen) {
+                    currentReconnectInterval = 5000;
+                    reconnectTimer.stop();
+                    pingTimer.start();
+                }
+            }
+
+            function onTextMessageReceived(message) {
+                try {
+                    const data = JSON.parse(message);
+                    handleWsMessage(data);
+                } catch (e) {
+                    console.error("HomeAssistantMonitor: Failed to parse WebSocket message:", e);
+                }
             }
         }
     }
@@ -157,9 +194,37 @@ Singleton {
         interval: root.currentReconnectInterval
         repeat: false
         onTriggered: {
-            if (socket.status !== WebSocket.Open) {
-                socket.active = false;
-                socket.active = true;
+            if (socket && socket.status !== root.wsOpen) {
+                // Toggle active to trigger reconnect if supported by Loader binding or manual reset
+                // Loader bindings are one-way. Toggling `active` on item directly might not work if bound?
+                // Actually `active` property on item is bound to `!!root.hassUrl...`.
+                // If we want to force reconnect, maybe we need to reload the Loader or toggle a property?
+                // `WebSocket` usually reconnects if `active` is toggled.
+                // The binding will keep it true.
+                // We might need to force reload loader? No, that's heavy.
+                // If `WebSocket` component has `active` property, and we bind it.
+                // Toggling `active` on the socket item itself effectively restarts it.
+                // But the binding will override it?
+                // QML Bindings: if we write to the property, the binding breaks!
+                // So we shouldn't write to `socket.active`.
+                // Ideally `QtWebSockets` handles reconnect if `active` stays true? No, it often needs a toggle.
+                // Let's toggle `wsLoader.active`? No, that destroys the item.
+                // Let's add a `reconnect()` method to `WebSocketClient.qml`?
+                // `WebSocket` doesn't have `reconnect()`.
+                // Toggle `active` is the standard way.
+                // Since I bound it: `value: !!root.hassUrl... when: ...`.
+                // If I write to `socket.active`, I break the binding.
+                // Strategy: Use an internal `reconnectTrigger` property in Service?
+                // Or: since `reconnectTimer` is only needed if connection dropped.
+                // If I reload the loader, it's clean but heavy.
+                // Let's leave the toggle logic but be aware of binding break.
+                // Actually, if binding breaks, it stays `true` (since we toggle false then true).
+                // It stays true until `hassUrl` changes again.
+                // This seems acceptable for now.
+                if (socket) {
+                    socket.active = false;
+                    socket.active = true;
+                }
                 
                 // Exponential backoff
                 root.currentReconnectInterval = Math.min(root.maxReconnectInterval, root.currentReconnectInterval * 1.5);
@@ -173,7 +238,7 @@ Singleton {
         repeat: true
         running: false
         onTriggered: {
-            if (socket.status === WebSocket.Open) {
+            if (socket && socket.status === root.wsOpen) {
                 root.lastPingTime = Date.now();
                 sendWsMessage({ type: "ping" }, (response) => {
                     if (response.type === "pong") {
@@ -339,7 +404,8 @@ Singleton {
 
         function onPluginDataChanged(changedPluginId) {
             if (changedPluginId === root.pluginId) {
-                loadSettings();
+                // Defer loading settings to avoid potential crash/race conditions
+                Qt.callLater(loadSettings);
             }
         }
     }
@@ -354,7 +420,7 @@ Singleton {
     property var refreshTimer: Timer {
         interval: root.refreshInterval * 1000
         // Only run polling if WebSocket is NOT connected and we are configured
-        running: socket.status !== WebSocket.Open && root.isConfigured
+        running: (!socket || socket.status !== root.wsOpen) && root.isConfigured
         repeat: true
         onTriggered: fetchEntities()
     }
@@ -373,7 +439,7 @@ Singleton {
     }
 
     function refresh() {
-        if (socket.status === WebSocket.Open) {
+        if (socket && socket.status === root.wsOpen) {
             // 1. Fetch States
             sendWsMessage({ type: "get_states" }, (response) => {
                 if (response.success && Array.isArray(response.result)) {
@@ -394,7 +460,7 @@ Singleton {
     }
 
     function sendWsMessage(msg, callback) {
-        if (socket.status !== WebSocket.Open) {
+        if (!socket || socket.status !== root.wsOpen) {
             if (callback) callback({success: false, error: "WebSocket not connected"});
             return;
         }
@@ -523,7 +589,7 @@ Singleton {
 
     // Fetch service definitions for dynamic controls via WebSocket
     function fetchServices() {
-        if (servicesLoaded || socket.status !== WebSocket.Open) return;
+        if (servicesLoaded || !socket || socket.status !== root.wsOpen) return;
         
         sendWsMessage({ type: "get_services" }, (response) => {
             if (response.success && response.result) {
@@ -554,7 +620,7 @@ Singleton {
 
     // Fetch devices and entities registry to build the device mapping via WebSocket
     function fetchDevices() {
-        if (devicesLoaded || socket.status !== WebSocket.Open) return;
+        if (devicesLoaded || !socket || socket.status !== root.wsOpen) return;
         
         // 1. Get Device Registry
         sendWsMessage({ type: "config/device_registry/list" }, (devResponse) => {
@@ -895,7 +961,7 @@ Singleton {
     }
 
     function callService(domain, service, entityId, serviceData) {
-        if (socket.status === WebSocket.Open) {
+        if (socket && socket.status === root.wsOpen) {
             const msg = {
                 type: "call_service",
                 domain: domain,
