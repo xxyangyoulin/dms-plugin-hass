@@ -12,22 +12,16 @@ Item {
     property string icon: ""
     property string displayValue: ""
     property bool isColorTemp: false
+    property real step: 1
+    property bool snap: true
+    property string valueSuffix: "%"
+    property bool showPercentage: true
 
     property real visualValue: value
     property bool isDragging: false
-    property bool blockSync: false
-
-    Timer {
-        id: syncLockTimer
-        interval: 3000 // Block external updates for 3s after user interaction
-        onTriggered: {
-            root.blockSync = false;
-            root.visualValue = root.value;
-        }
-    }
 
     onValueChanged: {
-        if (!isDragging && !blockSync) {
+        if (!isDragging) {
             visualValue = value;
         }
     }
@@ -38,11 +32,14 @@ Item {
         const range = root.maxValue - root.minValue;
         if (range <= 0) return;
         const percent = Math.max(0, Math.min(1, mouseX / width));
-        visualValue = root.minValue + percent * range;
+        var rawVal = root.minValue + percent * range;
         
-        // Start/Restart sync lock
-        blockSync = true;
-        syncLockTimer.restart();
+        if (root.snap) {
+            rawVal = Math.round(rawVal / root.step) * root.step;
+        }
+        
+        // Clamp to min/max after snapping to avoid floating point drift exceeding bounds
+        visualValue = Math.min(root.maxValue, Math.max(root.minValue, rawVal));
         
         root.changed(visualValue);
     }
@@ -137,21 +134,23 @@ Item {
 
         StyledText {
             text: {
-                if (root.isDragging || root.blockSync) {
+                if (root.isDragging) {
                     // Use optimistic visual value for text as well
                     if (root.isColorTemp) return Math.round(root.visualValue);
                     
-                    const range = root.maxValue - root.minValue;
-                    if (range <= 0) return "0%";
-                    
-                    // Most controls in this plugin use percentage for non-color-temp sliders
-                    return Math.round(((root.visualValue - root.minValue) / range) * 100) + "%";
+                    if (root.showPercentage) {
+                        const range = root.maxValue - root.minValue;
+                        if (range <= 0) return "0" + root.valueSuffix;
+                        return Math.round(((root.visualValue - root.minValue) / range) * 100) + root.valueSuffix;
+                    } else {
+                        return Math.round(root.visualValue) + root.valueSuffix;
+                    }
                 }
                 return root.displayValue;
             }
             font.pixelSize: Theme.fontSizeMedium
             font.weight: Font.Medium
-            color: (root.isDragging || root.blockSync) ? Theme.primary : Theme.surfaceText
+            color: root.isDragging ? Theme.primary : Theme.surfaceText
             width: 50
             horizontalAlignment: Text.AlignRight
             anchors.verticalCenter: parent.verticalCenter

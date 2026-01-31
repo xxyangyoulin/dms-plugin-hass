@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import qs.Common
 import qs.Services
 import qs.Widgets
@@ -22,16 +23,10 @@ PluginComponent {
     property bool showEntityBrowser: false
     property string entitySearchText: ""
 
-    Component.onCompleted: {
-        console.log(HomeAssistantService.pluginId, "loaded.");
-        cleanupPinnedEntities();
-    }
+    property bool isEditing: false // Global edit mode state
 
-    Connections {
-        target: globalEntities
-        function onValueChanged() {
-            cleanupPinnedEntities();
-        }
+    Ref {
+        service: HomeAssistantService
     }
 
     function cleanupPinnedEntities() {
@@ -46,7 +41,6 @@ PluginComponent {
             if (pluginService) {
                 pluginService.savePluginData("homeAssistantMonitor", "pinnedEntities", pinned);
             }
-            console.log("HomeAssistant: Cleaned up pinned entities");
         }
     }
 
@@ -69,9 +63,69 @@ PluginComponent {
     }
 
     PluginGlobalVar {
+        id: globalLatency
+        varName: "latency"
+        defaultValue: -1
+    }
+
+    PluginGlobalVar {
         id: globalAllEntities
         varName: "allEntities"
         defaultValue: []
+    }
+
+    ListModel {
+        id: monitoredListModel
+    }
+    
+    // Track last sync state to avoid redundant operations
+    property string _lastSyncHash: ""
+
+    function syncMonitoredList() {
+        const entities = globalEntities.value || [];
+        
+        // Fast path: check if any changes at all (quick hash check)
+        const newHash = entities.map(e => `${e.entityId}:${e.state}:${e.lastUpdated}`).join(",");
+        if (newHash === _lastSyncHash && monitoredListModel.count === entities.length) {
+            return;
+        }
+        _lastSyncHash = newHash;
+        
+        // Use smart diffing for incremental updates
+        const currentIds = [];
+        for (let i = 0; i < monitoredListModel.count; i++) {
+            currentIds.push(monitoredListModel.get(i).entityId);
+        }
+        
+        const newIds = entities.map(e => e.entityId);
+        
+        // Just update values, no structural change
+        if (JSON.stringify(currentIds) === JSON.stringify(newIds)) {
+            for (let i = 0; i < entities.length; i++) {
+                monitoredListModel.set(i, entities[i]);
+            }
+            return;
+        }
+        
+        // Full rebuild
+        monitoredListModel.clear();
+        for (const ent of entities) {
+            monitoredListModel.append(ent);
+        }
+    }
+
+    Connections {
+        target: globalEntities
+        function onValueChanged() {
+            cleanupPinnedEntities();
+            syncMonitoredList();
+        }
+    }
+
+    Component.onCompleted: {
+        cleanupPinnedEntities();
+        // Initial sync in case globalEntities already has data
+        syncMonitoredList();
     }
 
     function toggleEntity(entityId) {
@@ -126,9 +180,23 @@ PluginComponent {
         return pinnedEntities.map(id => entityMap[id]).filter(e => e !== undefined);
     }
 
+    // Debounced search text
+    property string debouncedSearchText: ""
+    
+    Timer {
+        id: searchDebounceTimer
+        interval: 200
+        repeat: false
+        onTriggered: root.debouncedSearchText = root.entitySearchText
+    }
+    
+    onEntitySearchTextChanged: {
+        searchDebounceTimer.restart();
+    }
+    
     readonly property var entityDomains: {
         const entities = globalAllEntities.value || [];
-        const searchLower = entitySearchText.toLowerCase().trim();
+        const searchLower = debouncedSearchText.toLowerCase().trim();
 
         const filteredEntities = searchLower
             ? entities.filter(e => {
@@ -156,6 +224,52 @@ PluginComponent {
             };
         });
     }
+
+    // Browse mode: "domain" or "device"
+    property string browseMode: "device"
+
+    // Entity grouping by device
+    readonly property var entityDevices: {
+        const devicesCache = HomeAssistantService.devicesCache || {};
+        const allEntities = globalAllEntities.value || [];
+        const searchLower = debouncedSearchText.toLowerCase().trim();
+
+        // Create entity lookup map
+        const entityMap = {};
+        for (const entity of allEntities) {
+            entityMap[entity.entityId] = entity;
+        }
+
+        // Build device list with expanded entities
+        const devices = [];
+        const sortedDeviceNames = Object.keys(devicesCache).sort((a, b) => a.localeCompare(b));
+
+        for (const deviceName of sortedDeviceNames) {
+            const entityIds = devicesCache[deviceName] || [];
+            const deviceEntities = entityIds
+                .map(id => entityMap[id])
+                .filter(e => e !== undefined)
+                .filter(e => {
+                    if (!searchLower) return true;
+                    return (e.friendlyName && e.friendlyName.toLowerCase().includes(searchLower)) ||
+                           (e.entityId && e.entityId.toLowerCase().includes(searchLower)) ||
+                           deviceName.toLowerCase().includes(searchLower);
+                })
+                .sort((a, b) => a.friendlyName.localeCompare(b.friendlyName));
+
+            if (deviceEntities.length > 0) {
+                devices.push({
+                    name: deviceName,
+                    entities: deviceEntities,
+                    entityCount: entityIds.length
+                });
+            }
+        }
+
+        return devices;
+    }
+
+
 
     function isEntityMonitored(entityId) {
         const entities = globalEntities.value || [];
@@ -268,110 +382,47 @@ PluginComponent {
         iconSearchText = "";
     }
 
-
-    horizontalBarPill: Row {
-        spacing: Theme.spacingS
-
-        HaIcon {
-            barThickness: root.barThickness
-            haAvailable: globalHaAvailable.value
-            entityCount: globalEntityCount.value
-            showHomeIcon: pluginData.showHomeIcon !== undefined ? pluginData.showHomeIcon : true
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.pinnedEntities.length === 0
-        }
-
-        Repeater {
-            model: root.pinnedEntitiesData
-
-            Row {
-                spacing: Theme.spacingXS
-                anchors.verticalCenter: parent.verticalCenter
-
-                DankIcon {
-                    name: root.getEntityIcon(modelData.entityId, modelData.domain)
-                    size: Theme.barIconSize(root.barThickness, -6)
-                    color: HassConstants.getStateColor(
-                        modelData.domain || "",
-                        modelData.state || "",
-                        Theme
-                    )
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-
-                StyledText {
-                    text: HassConstants.formatStateValue(
-                        modelData.state,
-                        modelData.unitOfMeasurement
-                    )
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.widgetTextColor || Theme.surfaceText
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-            }
-        }
-
-        HaCount {
-            entityCount: globalEntityCount.value
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.pinnedEntities.length === 0
-        }
+    function isSwitchable(entity) {
+        if (!entity) return false;
+        const domain = entity.domain;
+        const switchableDomains = ["switch", "light", "input_boolean", "fan", "automation", "script", "group", "climate"];
+        return switchableDomains.includes(domain);
     }
 
-    verticalBarPill: Column {
-        spacing: Theme.spacingXS
 
-        HaIcon {
-            barThickness: root.barThickness
-            haAvailable: globalHaAvailable.value
-            entityCount: globalEntityCount.value
-            showHomeIcon: pluginData.showHomeIcon !== undefined ? pluginData.showHomeIcon : true
-            anchors.horizontalCenter: parent.horizontalCenter
-            visible: root.pinnedEntities.length === 0
-        }
-
-        Repeater {
-            model: root.pinnedEntitiesData
-
-            Column {
-                spacing: 2
-                anchors.horizontalCenter: parent.horizontalCenter
-
-                DankIcon {
-                    name: root.getEntityIcon(modelData.entityId, modelData.domain)
-                    size: Theme.barIconSize(root.barThickness, -6)
-                    color: HassConstants.getStateColor(
-                        modelData.domain || "",
-                        modelData.state || "",
-                        Theme
-                    )
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-
-                StyledText {
-                    text: HassConstants.formatStateValue(
-                        modelData.state,
-                        modelData.unitOfMeasurement
-                    )
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.widgetTextColor || Theme.surfaceText
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-            }
-        }
-
-        HaCount {
-            entityCount: globalEntityCount.value
-            anchors.horizontalCenter: parent.horizontalCenter
-            visible: root.pinnedEntities.length === 0
-        }
+    horizontalBarPill: StatusBarContent {
+        orientation: Qt.Horizontal
+        haAvailable: globalHaAvailable.value
+        entityCount: globalEntityCount.value
+        pinnedEntitiesData: root.pinnedEntitiesData
+        customIcons: root.customIcons
+        barThickness: root.barThickness
+        showHomeIcon: pluginData.showHomeIcon !== undefined ? pluginData.showHomeIcon : true
     }
 
+    verticalBarPill: StatusBarContent {
+        orientation: Qt.Vertical
+        haAvailable: globalHaAvailable.value
+        entityCount: globalEntityCount.value
+        pinnedEntitiesData: root.pinnedEntitiesData
+        customIcons: root.customIcons
+        barThickness: root.barThickness
+        showHomeIcon: pluginData.showHomeIcon !== undefined ? pluginData.showHomeIcon : true
+    }
+
+    // Lazy-loaded popout content for better performance
+    property bool popoutReady: false
+    
     popoutContent: Component {
         FocusScope {
+            id: popoutScope
             implicitWidth: 420
             implicitHeight: 600
             focus: true
+            
+            // Content is immediately ready - no delay to avoid blank screen
+            // Performance is handled via ListView cacheBuffer and lazy Loaders
+            property bool contentReady: true
 
             property var parentPopout: null
 
@@ -414,11 +465,12 @@ PluginComponent {
                 }
             }
 
+            // Main Content
             Column {
                 id: popoutColumn
                 spacing: 0
                 width: parent.width
-
+                
                 Rectangle {
                     width: parent.width
                     height: 46
@@ -430,10 +482,35 @@ PluginComponent {
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: 2
 
-                        StyledText {
-                            text: globalHaAvailable.value ? I18n.tr("Monitoring", "Home Assistant status") + ` ${globalEntityCount.value} ` + I18n.tr("entities", "Home Assistant entity count") : I18n.tr("Home Assistant unavailable", "Home Assistant connection error")
-                            font.pixelSize: Theme.fontSizeMedium
-                            color: Theme.surfaceVariantText
+                        Row {
+                            spacing: Theme.spacingS
+                            
+                            Rectangle {
+                                width: 8; height: 8; radius: 4
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: {
+                                    if (!globalHaAvailable.value) return Theme.error;
+                                    if (globalLatency.value < 0) return Theme.surfaceVariantText;
+                                    if (globalLatency.value < 50) return "#4caf50"; // Green
+                                    if (globalLatency.value < 150) return "#ff9800"; // Orange
+                                    return Theme.error;
+                                }
+                                Behavior on color { ColorAnimation { duration: 300 } }
+                            }
+
+                            StyledText {
+                                text: {
+                                    if (!globalHaAvailable.value) return I18n.tr("Home Assistant unavailable", "Home Assistant connection error");
+                                    let base = I18n.tr("Monitoring", "Home Assistant status") + ` ${globalEntityCount.value} ` + I18n.tr("entities", "Home Assistant entity count");
+                                    if (globalLatency.value >= 0) {
+                                        return base + ` (${globalLatency.value}ms)`;
+                                    }
+                                    return base;
+                                }
+                                font.pixelSize: Theme.fontSizeMedium
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: Theme.surfaceVariantText
+                            }
                         }
 
                         StyledText {
@@ -450,6 +527,25 @@ PluginComponent {
                         anchors.rightMargin: Theme.spacingS
                         anchors.verticalCenter: parent.verticalCenter
                         spacing: Theme.spacingXS
+
+                        // Edit Shortcuts Toggle
+                        Rectangle {
+                            width: 36; height: 36; radius: Theme.cornerRadius
+                            color: root.isEditing ? Theme.primaryContainer : "transparent"
+                            
+                            DankIcon {
+                                name: root.isEditing ? "check" : "edit"
+                                size: 18
+                                color: root.isEditing ? Theme.primary : Theme.surfaceText
+                                anchors.centerIn: parent
+                            }
+                            
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.isEditing = !root.isEditing
+                            }
+                        }
 
                         BrowseEntitiesButton {
                             onClicked: {
@@ -468,235 +564,23 @@ PluginComponent {
                 }
 
                 // Entity Browser
-                Rectangle {
+                EntityBrowser {
+                    id: entityBrowser
                     width: parent.width
-                    height: root.showEntityBrowser ? 400 : 0
-                    color: "transparent"
-                    clip: true
-                    visible: height > 0
-
-                    Behavior on height {
-                        NumberAnimation {
-                            duration: 250
-                            easing.type: Easing.InOutCubic
-                        }
+                    isOpen: root.showEntityBrowser
+                    browseMode: root.browseMode
+                    searchText: root.entitySearchText
+                    deviceModel: root.entityDevices
+                    domainModel: root.entityDomains
+                    contentReady: popoutScope.contentReady
+                    monitoredEntityIds: {
+                        var list = globalEntities.value || [];
+                        return list.map(e => e.entityId);
                     }
 
-                    Column {
-                        width: parent.width
-                        height: parent.height
-                        spacing: 0
-
-                        Rectangle {
-                            width: parent.width
-                            height: 1
-                            color: Theme.outline
-                            opacity: 0.3
-                        }
-
-                        Column {
-                            width: parent.width
-                            spacing: 0
-
-                            StyledText {
-                                width: parent.width
-                                text: I18n.tr("Browse All Entities", "Entity browser title")
-                                font.pixelSize: Theme.fontSizeMedium
-                                font.weight: Font.Medium
-                                color: Theme.surfaceText
-                                leftPadding: Theme.spacingM
-                                topPadding: Theme.spacingS
-                                bottomPadding: Theme.spacingXS
-                            }
-
-                            Rectangle {
-                                width: parent.width - Theme.spacingM * 2
-                                height: 36
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                radius: Theme.cornerRadius
-                                color: Theme.surfaceContainer
-                                border.width: searchInput.activeFocus ? 2 : 1
-                                border.color: searchInput.activeFocus ? Theme.primary : Theme.outline
-
-                                Row {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: Theme.spacingS
-                                    anchors.rightMargin: Theme.spacingS
-                                    spacing: Theme.spacingXS
-
-                                    DankIcon {
-                                        name: "search"
-                                        size: 18
-                                        color: Theme.surfaceVariantText
-                                        anchors.verticalCenter: parent.verticalCenter
-                                    }
-
-                                    TextInput {
-                                        id: searchInput
-                                        width: parent.width - 50
-                                        height: parent.height
-                                        color: Theme.surfaceText
-                                        font.pixelSize: Theme.fontSizeMedium
-                                        verticalAlignment: TextInput.AlignVCenter
-                                        text: root.entitySearchText
-                                        onTextChanged: root.entitySearchText = text
-
-                                        Text {
-                                            anchors.fill: parent
-                                            text: I18n.tr("Search entities...", "Entity browser search placeholder")
-                                            color: Theme.surfaceVariantText
-                                            font.pixelSize: Theme.fontSizeMedium
-                                            verticalAlignment: Text.AlignVCenter
-                                            visible: !searchInput.text && !searchInput.activeFocus
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        width: 20
-                                        height: 20
-                                        radius: 10
-                                        color: clearMouse.containsMouse ? Theme.surfaceVariantText : "transparent"
-                                        visible: root.entitySearchText.length > 0
-                                        anchors.verticalCenter: parent.verticalCenter
-
-                                        DankIcon {
-                                            name: "close"
-                                            size: 14
-                                            color: clearMouse.containsMouse ? Theme.surface : Theme.surfaceVariantText
-                                            anchors.centerIn: parent
-                                        }
-
-                                        MouseArea {
-                                            id: clearMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                root.entitySearchText = "";
-                                                searchInput.focus = false;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                width: parent.width
-                                height: Theme.spacingS
-                                color: "transparent"
-                            }
-                        }
-
-                        DankListView {
-                            width: parent.width
-                            height: parent.height - 95
-                            leftMargin: Theme.spacingM
-                            rightMargin: Theme.spacingM
-                            spacing: 4
-                            clip: true
-                            model: root.entityDomains
-
-                            delegate: Column {
-                                width: (parent ? parent.width : root.width) - Theme.spacingM * 2
-                                spacing: 2
-
-                                StyledText {
-                                    text: modelData.name.toUpperCase()
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    font.weight: Font.Bold
-                                    color: Theme.primary
-                                    topPadding: Theme.spacingS
-                                    bottomPadding: Theme.spacingXS
-                                }
-
-                                Repeater {
-                                    model: modelData.entities
-
-                                    StyledRect {
-                                        width: parent.width
-                                        height: Math.max(40, contentRow.height + Theme.spacingS * 2)
-                                        radius: Theme.cornerRadius
-                                        color: entityBrowserMouse.containsMouse ? Theme.surfaceContainerHigh : Theme.surfaceContainer
-
-                                        property bool isMonitored: root.isEntityMonitored(modelData.entityId)
-
-                                        Row {
-                                            id: contentRow
-                                            anchors.left: parent.left
-                                            anchors.right: parent.right
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            anchors.leftMargin: Theme.spacingM
-                                            anchors.rightMargin: Theme.spacingM
-                                            spacing: Theme.spacingS
-
-                                            Rectangle {
-                                                width: 20
-                                                height: 20
-                                                radius: 4
-                                                color: parent.parent.isMonitored ? Theme.primary : "transparent"
-                                                border.width: 2
-                                                border.color: parent.parent.isMonitored ? Theme.primary : Theme.outline
-                                                anchors.verticalCenter: parent.verticalCenter
-
-                                                DankIcon {
-                                                    name: "check"
-                                                    size: 14
-                                                    color: Theme.onPrimary
-                                                    anchors.centerIn: parent
-                                                    visible: parent.parent.parent.isMonitored
-                                                }
-                                            }
-
-                                            DankIcon {
-                                                name: HassConstants.getIconForDomain(modelData.domain)
-                                                size: 18
-                                                color: Theme.surfaceVariantText
-                                                anchors.verticalCenter: parent.verticalCenter
-                                            }
-
-                                            Column {
-                                                width: parent.width - 60
-                                                spacing: 2
-                                                anchors.verticalCenter: parent.verticalCenter
-
-                                                StyledText {
-                                                    text: modelData.friendlyName
-                                                    font.pixelSize: Theme.fontSizeSmall
-                                                    color: Theme.surfaceText
-                                                    elide: Text.ElideRight
-                                                    width: parent.width
-                                                    wrapMode: Text.NoWrap
-                                                }
-
-                                                StyledText {
-                                                    text: {
-                                                        const val = modelData.state || "";
-                                                        const unit = modelData.unitOfMeasurement || "";
-                                                        return unit ? `${val}${unit}` : val;
-                                                    }
-                                                    font.pixelSize: Theme.fontSizeSmall - 1
-                                                    color: Theme.primary
-                                                    width: parent.width
-                                                    wrapMode: Text.Wrap
-                                                    maximumLineCount: 3
-                                                    elide: Text.ElideRight
-                                                    visible: text !== ""
-                                                }
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            id: entityBrowserMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.toggleMonitorEntity(modelData.entityId)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    onRequestToggleMonitor: (entityId) => root.toggleMonitorEntity(entityId)
+                    onRequestBrowseModeChange: (mode) => root.browseMode = mode
+                    onRequestSearchTextChange: (text) => root.entitySearchText = text
                 }
 
                 // Monitored Entities List
@@ -715,8 +599,30 @@ PluginComponent {
                     rightMargin: Theme.spacingM
                     spacing: Theme.spacingS
                     clip: true
-                    model: globalEntities.value
+                    cacheBuffer: 150  // Pre-render nearby items
+                    model: popoutScope.contentReady ? monitoredListModel : null
                     currentIndex: root.keyboardNavigationActive ? globalEntities.value.findIndex(e => e.entityId === root.selectedEntityId) : -1
+
+                    header: ShortcutsGrid {
+                        width: parent.width - entityList.leftMargin - entityList.rightMargin
+                        x: entityList.leftMargin
+                        isEditing: root.isEditing
+                    }
+
+                    // Animations for sorting/adding/removing
+                    move: Transition {
+                        NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
+                    }
+                    moveDisplaced: Transition {
+                        NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
+                    }
+                    add: Transition {
+                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+                        NumberAnimation { property: "scale"; from: 0.9; to: 1; duration: 200 }
+                    }
+                    displaced: Transition {
+                        NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
+                    }
 
                     Behavior on height {
                         enabled: false
@@ -733,22 +639,23 @@ PluginComponent {
                         EntityCard {
                             id: entityCardDelegate
                             width: parent.width
-                            entityData: modelData
-                            isExpanded: root.expandedEntities[modelData.entityId] || false
-                            isCurrentItem: root.keyboardNavigationActive && root.selectedEntityId === modelData.entityId
-                            isPinned: root.isPinned(modelData.entityId)
-                            detailsExpanded: root.showEntityDetails[modelData.entityId] || false
+                            entityData: monitoredListModel.get(index)
+                            isExpanded: root.expandedEntities[entityId] || false
+                            isCurrentItem: root.keyboardNavigationActive && root.selectedEntityId === entityId
+                            isPinned: root.isPinned(entityId)
+                            detailsExpanded: root.showEntityDetails[entityId] || false
                             showAttributes: root.showAttributes
                             customIcons: root.customIcons
+                            isEditing: root.isEditing
 
-                            onToggleExpand: root.toggleEntity(modelData.entityId)
-                            onTogglePin: root.togglePinEntity(modelData.entityId)
-                            onToggleDetails: root.toggleEntityDetails(modelData.entityId)
+                            onToggleExpand: root.toggleEntity(entityId)
+                            onTogglePin: root.togglePinEntity(entityId)
+                            onToggleDetails: root.toggleEntityDetails(entityId)
                             onRemoveEntity: {
-                                HomeAssistantService.removeEntityFromMonitor(modelData.entityId);
+                                HomeAssistantService.removeEntityFromMonitor(entityId);
                                 ToastService.showInfo(I18n.tr("Entity removed from monitoring", "Entity monitoring notification"));
                             }
-                            onOpenIconPicker: root.openIconPicker(modelData.entityId)
+                            onOpenIconPicker: root.openIconPicker(entityId)
                         }
                     }
                 }
@@ -765,6 +672,44 @@ PluginComponent {
                     visible: globalEntities.value.length === 0 && !root.showEntityBrowser
                     haAvailable: globalHaAvailable.value
                     entityCount: globalEntityCount.value
+                }
+            }
+
+            // Dependency Error Overlay
+            Rectangle {
+                anchors.fill: parent
+                z: 999
+                color: Theme.surface
+                visible: HomeAssistantService.missingDependency
+
+                ColumnLayout {
+                    anchors.centerIn: parent
+                    spacing: Theme.spacingM
+
+                    DankIcon {
+                        name: "error"
+                        size: 48
+                        color: Theme.error
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
+                    StyledText {
+                        text: I18n.tr("Missing Dependency", "Error title")
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.weight: Font.Bold
+                        color: Theme.error
+                        Layout.alignment: Qt.AlignHCenter
+                    }
+
+                    StyledText {
+                        text: I18n.tr("Please install 'qt6-websockets' package and then RESTART DMS to use this plugin.", "Error description")
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: Theme.surfaceText
+                        Layout.alignment: Qt.AlignHCenter
+                        horizontalAlignment: Text.AlignHCenter
+                        Layout.maximumWidth: parent.width - Theme.spacingXL * 2
+                        wrapMode: Text.WordWrap
+                    }
                 }
             }
 

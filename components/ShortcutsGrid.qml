@@ -1,0 +1,132 @@
+import QtQuick
+import QtQuick.Layouts
+import qs.Common
+import qs.Widgets
+import "../services"
+import "."
+
+Column {
+    id: shortcutsGridRoot
+    
+    property bool isEditing: false
+    property string selectedShortcutId: ""
+    
+    // Signals
+    signal requestSelect(string id)
+    signal requestEdit(string id)
+    signal requestDelete(string id)
+    
+    visible: HomeAssistantService.shortcutsModel.count > 0 || isEditing
+    spacing: Theme.spacingS
+    
+    onIsEditingChanged: {
+        if (!isEditing) selectedShortcutId = "";
+    }
+    
+    // Internal shortcut selection state handling
+    // We need to support keyboard navigation which was previously in the parent
+    
+    GridLayout {
+        id: shortcutsGrid
+        width: parent.width
+        columnSpacing: Theme.spacingS
+        rowSpacing: Theme.spacingS
+
+        // Calculate columns: (width + spacing) / (minWidth + spacing)
+        columns: Math.max(1, Math.floor((width + columnSpacing) / (100 + columnSpacing)))
+
+        focus: true
+        Keys.enabled: shortcutsGridRoot.isEditing && shortcutsGridRoot.selectedShortcutId !== ""
+
+        Keys.onUpPressed: {
+            if (shortcutsGridRoot.selectedShortcutId === "") return;
+
+            var currentIndex = -1;
+            for (var i = 0; i < HomeAssistantService.shortcutsModel.count; i++) {
+                if (HomeAssistantService.shortcutsModel.get(i).entityId === shortcutsGridRoot.selectedShortcutId) {
+                    currentIndex = i;
+                    break;
+                }
+            }
+
+            if (currentIndex > 0) {
+                HomeAssistantService.moveShortcut(currentIndex, currentIndex - 1);
+            }
+        }
+
+        Keys.onDownPressed: {
+            if (shortcutsGridRoot.selectedShortcutId === "") return;
+
+            var currentIndex = -1;
+            for (var i = 0; i < HomeAssistantService.shortcutsModel.count; i++) {
+                if (HomeAssistantService.shortcutsModel.get(i).entityId === shortcutsGridRoot.selectedShortcutId) {
+                    currentIndex = i;
+                    break;
+                }
+            }
+
+            if (currentIndex >= 0 && currentIndex < HomeAssistantService.shortcutsModel.count - 1) {
+                HomeAssistantService.moveShortcut(currentIndex, currentIndex + 1);
+            }
+        }
+
+        Keys.onEscapePressed: {
+            shortcutsGridRoot.selectedShortcutId = "";
+        }
+
+        Repeater {
+            model: HomeAssistantService.shortcutsModel
+
+            delegate: ShortcutChip {
+                required property int index
+                required property string entityId
+                required property string name
+                required property string domain
+
+                shortcutData: ({
+                    "id": entityId,
+                    "name": name,
+                    "domain": domain
+                })
+
+                isEditing: shortcutsGridRoot.isEditing
+                isSelected: shortcutsGridRoot.selectedShortcutId === entityId
+
+                Layout.fillWidth: true
+                Layout.minimumWidth: 100
+
+                onLongPressed: shortcutsGridRoot.isEditing = true
+
+                onRequestSelect: {
+                    shortcutsGridRoot.selectedShortcutId = entityId;
+                    shortcutsGrid.forceActiveFocus();
+                }
+
+                onRequestEdit: {
+                    shortcutsGridRoot.selectedShortcutId = entityId;
+                    shortcutsGridRoot.isEditing = true;
+                }
+
+                onRequestDelete: {
+                    // Clear selection first to avoid accessing context after removal
+                    shortcutsGridRoot.selectedShortcutId = "";
+                    HomeAssistantService.removeShortcut(entityId);
+                }
+
+                onRequestRename: (newName) => {
+                    HomeAssistantService.renameShortcut(entityId, newName);
+                }
+                
+                onRequestMove: (offset) => {
+                    var newIndex = index + offset;
+                    if (newIndex >= 0 && newIndex < HomeAssistantService.shortcutsModel.count) {
+                        HomeAssistantService.moveShortcut(index, newIndex);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Spacer
+    Item { width: 1; height: Theme.spacingS }
+}

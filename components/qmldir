@@ -1,1 +1,4 @@
 singleton HomeAssistantService 1.0 ../services/HomeAssistantService.qml
+SegmentedControl 1.0 SegmentedControl.qml
+DynamicControl 1.0 DynamicControl.qml
+DynamicServiceControls 1.0 DynamicServiceControls.qml
