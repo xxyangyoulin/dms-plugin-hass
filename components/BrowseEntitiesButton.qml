@@ -11,7 +11,7 @@ Rectangle {
     width: 36
     height: 36
     radius: Theme.cornerRadius
-    color: isActive ? Theme.primaryHover : Qt.rgba(0, 0, 0, 0)
+    color: isActive ? Theme.primaryContainer : Qt.rgba(0, 0, 0, 0)
 
     DankIcon {
         anchors.centerIn: parent

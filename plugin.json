@@ -2,7 +2,7 @@
     "id": "homeAssistantMonitor",
     "name": "Home Assistant Monitor",
     "description": "Monitor and display Home Assistant entity states in your status bar",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "author": "xxyangyoulin",
     "component": "./HomeAssistantWidget.qml",
     "icon": "home",
@@ -11,7 +11,6 @@
     "license": "MIT",
     "permissions": [
         "settings_read",
-        "settings_write",
-        "process"
+        "settings_write"
     ]
 }

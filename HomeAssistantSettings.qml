@@ -28,16 +28,7 @@ PluginSettings {
         color: Theme.outlineVariant
     }
 
-    SliderSetting {
-        settingKey: "refreshInterval"
-        label: "Refresh Interval"
-        description: "How often to fetch entity states from Home Assistant"
-        defaultValue: 3
-        minimum: 1
-        maximum: 300
-        unit: "s"
-        leftIcon: "schedule"
-    }
+
 
     ToggleSetting {
         settingKey: "showAttributes"

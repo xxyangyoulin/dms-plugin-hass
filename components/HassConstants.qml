@@ -83,6 +83,67 @@ QtObject {
     readonly property int refreshDelay: 500
     readonly property int historyHours: 24
 
+    // ========== Feature Bitmasks (from Home Assistant) ==========
+    // Fan Features: https://github.com/home-assistant/core/blob/dev/homeassistant/components/fan/__init__.py
+    readonly property var fanFeature: ({
+        SET_SPEED: 1,
+        OSCILLATE: 2,
+        DIRECTION: 4,
+        PRESET_MODE: 8,
+        TURN_OFF: 16,
+        TURN_ON: 32
+    })
+
+    // Media Player Features
+    readonly property var mediaFeature: ({
+        PAUSE: 1,
+        SEEK: 2,
+        VOLUME_SET: 4,
+        VOLUME_MUTE: 8,
+        PREVIOUS_TRACK: 16,
+        NEXT_TRACK: 32,
+        TURN_ON: 128,
+        TURN_OFF: 256,
+        PLAY_MEDIA: 512,
+        VOLUME_STEP: 1024,
+        SELECT_SOURCE: 2048,
+        STOP: 4096,
+        CLEAR_PLAYLIST: 8192,
+        PLAY: 16384,
+        SHUFFLE_SET: 32768,
+        SELECT_SOUND_MODE: 65536,
+        BROWSE_MEDIA: 131072,
+        REPEAT_SET: 262144,
+        GROUPING: 524288
+    })
+
+    // Light Color Modes
+    readonly property var lightColorMode: ({
+        UNKNOWN: "unknown",
+        ONOFF: "onoff",
+        BRIGHTNESS: "brightness",
+        COLOR_TEMP: "color_temp",
+        HS: "hs",
+        XY: "xy",
+        RGB: "rgb",
+        RGBW: "rgbw",
+        RGBWW: "rgbww",
+        WHITE: "white"
+    })
+
+    // Modes that support brightness
+    readonly property var lightModesSupportingBrightness: [
+        "brightness", "color_temp", "hs", "xy", "rgb", "rgbw", "rgbww", "white"
+    ]
+
+    // Modes that support color
+    readonly property var lightModesSupportingColor: [
+        "hs", "xy", "rgb", "rgbw", "rgbww"
+    ]
+
+    // Max speed count before switching from buttons to slider
+    readonly property int fanSpeedCountMaxForButtons: 4
+
     // Helper functions
     function getIconForDomain(domain) {
         return domainIcons[domain] || "sensors";
@@ -92,32 +153,63 @@ QtObject {
         return controllableDomains.indexOf(domain) >= 0;
     }
 
+    // Check if entity is in "active" state (on, heat, cool, playing, etc.)
+    function isActiveState(domain, state) {
+        if (!state || state === "unknown" || state === "unavailable") return false;
+        
+        // Climate devices: active if not "off"
+        if (domain === "climate") {
+            return state !== "off";
+        }
+        
+        // Cover: active if open
+        if (domain === "cover") {
+            return state === "open";
+        }
+        
+        // Lock: active if locked
+        if (domain === "lock") {
+            return state === "locked";
+        }
+        
+        // Media player: active if playing
+        if (domain === "media_player") {
+            return state === "playing" || state === "on";
+        }
+        
+        // Default: check for "on" state
+        return state === "on";
+    }
+
     function getStateColor(domain, state, theme) {
         if (domain === "light" || domain === "switch") {
             return state === "on" ? theme.primary : theme.surfaceVariantText;
         } else if (domain === "binary_sensor") {
             return state === "on" ? theme.warning : theme.surfaceVariantText;
         } else if (domain === "climate") {
-            return (state === "heat" || state === "cool") ? theme.primary : theme.surfaceVariantText;
+            return state !== "off" ? theme.primary : theme.surfaceVariantText;
+        } else if (domain === "cover") {
+            return state === "open" ? theme.primary : theme.surfaceVariantText;
+        } else if (domain === "lock") {
+            return state === "locked" ? theme.primary : theme.surfaceVariantText;
         }
         return theme.primary;
     }
 
     function getIconBackgroundColor(domain, state, theme) {
-        if (domain === "light" || domain === "switch") {
-            return state === "on"
-                ? Qt.rgba(theme.primary.r, theme.primary.g, theme.primary.b, 0.15)
-                : theme.surfaceVariant;
-        } else if (domain === "binary_sensor") {
-            return state === "on"
+        const active = isActiveState(domain, state);
+        
+        if (domain === "binary_sensor") {
+            return active
                 ? Qt.rgba(theme.warning.r, theme.warning.g, theme.warning.b, 0.15)
                 : theme.surfaceVariant;
-        } else if (domain === "climate") {
-            return (state === "heat" || state === "cool")
-                ? Qt.rgba(theme.primary.r, theme.primary.g, theme.primary.b, 0.15)
-                : theme.surfaceVariant;
         }
-        return Qt.rgba(theme.primary.r, theme.primary.g, theme.primary.b, 0.1);
+        
+        // For all controllable domains
+        if (active) {
+            return Qt.rgba(theme.primary.r, theme.primary.g, theme.primary.b, 0.15);
+        }
+        return theme.surfaceVariant;
     }
 
     function formatStateValue(state, unitOfMeasurement) {
@@ -130,5 +222,55 @@ QtObject {
         return (entity && entity.attributes && entity.attributes[attrName] !== undefined)
             ? entity.attributes[attrName]
             : defaultValue;
+    }
+
+    // ========== Feature Detection Helpers ==========
+    // Check if entity supports a specific feature (bitmask check)
+    function supportsFeature(entity, feature) {
+        if (!entity || !entity.attributes) return false;
+        var features = entity.attributes.supported_features || 0;
+        return (features & feature) !== 0;
+    }
+
+    // Check if light supports brightness
+    function lightSupportsBrightness(entity) {
+        if (!entity || !entity.attributes) return false;
+        var modes = entity.attributes.supported_color_modes || [];
+        for (var i = 0; i < modes.length; i++) {
+            if (lightModesSupportingBrightness.indexOf(modes[i]) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Check if light supports color
+    function lightSupportsColor(entity) {
+        if (!entity || !entity.attributes) return false;
+        var modes = entity.attributes.supported_color_modes || [];
+        for (var i = 0; i < modes.length; i++) {
+            if (lightModesSupportingColor.indexOf(modes[i]) >= 0) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Check if light supports color temp
+    function lightSupportsColorTemp(entity) {
+        if (!entity || !entity.attributes) return false;
+        var modes = entity.attributes.supported_color_modes || [];
+        return modes.indexOf("color_temp") >= 0;
+    }
+
+    // Compute fan speed count from percentage_step
+    function computeFanSpeedCount(entity) {
+        var step = safeAttr(entity, "percentage_step", 1);
+        return Math.round(100 / step) + 1;
+    }
+
+    // Check if fan should use buttons (few speeds) or slider (many speeds)
+    function fanShouldUseButtons(entity) {
+        return computeFanSpeedCount(entity) <= fanSpeedCountMaxForButtons;
     }
 }
