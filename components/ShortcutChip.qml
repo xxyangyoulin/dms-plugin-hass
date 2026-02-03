@@ -25,9 +25,9 @@ StyledRect {
 
     // Use implicit size to suggest size to layout
     implicitWidth: isEditing ? Math.max(140, row.implicitWidth + Theme.spacingS * 2) : Math.max(100, row.implicitWidth + Theme.spacingS * 2)
-    implicitHeight: 36
-    height: 36
-    radius: 18
+    implicitHeight: 42
+    height: 42
+    radius: 21
 
     // Visual feedback for edit mode
     color: isSelected ? (Theme.primary || "transparent") : (isEditing ? Theme.surfaceContainerHigh : (mouseArea.containsMouse ? Theme.surfaceContainerHigh : Theme.surfaceContainer))

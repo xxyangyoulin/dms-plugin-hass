@@ -74,6 +74,12 @@ PluginComponent {
         defaultValue: []
     }
 
+    PluginGlobalVar {
+        id: globalRefreshCounter
+        varName: "haRefreshCounter"
+        defaultValue: 0
+    }
+
     ListModel {
         id: monitoredListModel
     }
@@ -351,6 +357,9 @@ PluginComponent {
     }
 
     function refreshEntities() {
+        // Increment refresh counter to reset entity card expand caches
+        var currentCounter = globalRefreshCounter.value || 0;
+        globalRefreshCounter.value = currentCounter + 1;
         HomeAssistantService.refresh();
         ToastService.showInfo(I18n.tr("Refreshing Home Assistant entities...", "Entity refresh notification"));
     }

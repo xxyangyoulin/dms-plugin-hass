@@ -21,6 +21,9 @@ StyledRect {
     readonly property real baseHeight: 68
     readonly property bool isControllable: Components.HassConstants.isControllableDomain(entityData && entityData.domain ? entityData.domain : "")
     readonly property bool hasControls: _hasControls()
+    readonly property bool hasExpandableContent: _computeHasExpandableContent()
+    property bool _hasExpandedOnce: false
+    property bool _hasActualContent: false
     property var historyData: []
     property var relatedEntities: []
 
@@ -68,6 +71,35 @@ StyledRect {
         return attrs.brightness !== undefined || attrs.color_temp !== undefined || attrs.percentage !== undefined || attrs.current_position !== undefined || attrs.options !== undefined || attrs.effect_list !== undefined;
     }
 
+    function _computeHasExpandableContent() {
+        if (!entityData) return false;
+        // After first expand, use actual content check
+        if (_hasExpandedOnce) return _hasActualContent;
+        // Before first expand, use prediction
+        var attrs = entityData.attributes || {};
+        var domain = entityData.domain;
+        if (hasControls) return true;
+        if (domain === "sensor" || domain === "binary_sensor") return true;
+        if (showAttributes) {
+            var ignoredKeys = ["friendly_name", "icon", "unit_of_measurement", "device_class", "supported_features", "entity_id", "entity", "last_changed", "last_updated"];
+            var keys = Object.keys(attrs).filter(function(key) { return !ignoredKeys.includes(key); });
+            if (keys.length > 0) return true;
+        }
+        return false;
+    }
+
+    function _updateActualContent() {
+        if (!_hasExpandedOnce) return;
+        var attrs = entityData ? entityData.attributes : {};
+        var hasAttrs = showAttributes && attrs && Object.keys(attrs).filter(function(key) { return key !== "friendly_name" && key !== "icon" && key !== "unit_of_measurement" && key !== "device_class"; }).length > 0;
+        _hasActualContent = hasControls || hasAttrs || historyData.length > 0 || (relatedEntities && relatedEntities.length > 0);
+    }
+
+    function _resetExpandCache() {
+        _hasExpandedOnce = false;
+        _hasActualContent = false;
+    }
+
     function _getEntityIcon(entityId, domain) {
         return customIcons[entityId] || Components.HassConstants.getIconForDomain(domain);
     }
@@ -80,19 +112,37 @@ StyledRect {
 
     onEntityDataChanged: _updateRelatedEntities()
     onIsExpandedChanged: {
+        if (!_hasExpandedOnce && isExpanded) _hasExpandedOnce = true;
         _updateRelatedEntities();
         if (isExpanded && entityData) {
             var domain = entityData.domain;
             if (domain === "sensor" || domain === "binary_sensor")
-                HomeAssistantService.fetchHistory(entityData.entityId, function(data) { historyData = data; });
+                HomeAssistantService.fetchHistory(entityData.entityId, function(data) { historyData = data; _updateActualContent(); });
         }
+        _updateActualContent();
     }
+    onHistoryDataChanged: if (_hasExpandedOnce) _updateActualContent()
+    onRelatedEntitiesChanged: if (_hasExpandedOnce) _updateActualContent()
     height: baseHeight + (isExpanded && hasControls ? Theme.spacingM + controlsLoader.height : 0) + (isExpanded ? Theme.spacingM + attributesColumn.height : 0)
 
     PluginGlobalVar {
         id: globalAllEntities
         varName: "allEntities"
         defaultValue: []
+    }
+
+    property int _lastRefreshCounter: 0
+
+    PluginGlobalVar {
+        id: globalRefreshCounter
+        varName: "haRefreshCounter"
+        defaultValue: 0
+        onValueChanged: {
+            if (value > entityCard._lastRefreshCounter) {
+                entityCard._lastRefreshCounter = value;
+                entityCard._resetExpandCache();
+            }
+        }
     }
 
     // Hover overlay layer
@@ -422,7 +472,7 @@ StyledRect {
         anchors.right: parent.right; anchors.rightMargin: Theme.spacingS
         anchors.top: parent.top; anchors.topMargin: (entityCard.baseHeight - height) / 2
         z: 10
-        visible: !isEditing
+        visible: !isEditing && hasExpandableContent
 
         DankIcon {
             name: isExpanded ? "expand_less" : "expand_more"; size: 20; color: Theme.surfaceText; anchors.centerIn: parent
@@ -485,23 +535,23 @@ StyledRect {
         id: entityMouse
         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
         height: entityCard.baseHeight
-        hoverEnabled: true; cursorShape: Qt.PointingHandCursor; z: 1
+        hoverEnabled: true; cursorShape: hasExpandableContent ? Qt.PointingHandCursor : Qt.ArrowCursor; z: 1
         enabled: !isRenaming // Allow clicks unless renaming input is active
-        
+
         onClicked: {
             if (isEditing) {
                 // In edit mode single click could select or do nothing (currently nothing special requested for selection visual)
-            } else {
+            } else if (hasExpandableContent) {
                 entityCard.toggleExpand();
             }
         }
-        
+
         onDoubleClicked: {
             if (isEditing) {
                 isRenaming = true;
                 nameInput.forceActiveFocus();
                 nameInput.selectAll();
-            } else {
+            } else if (hasExpandableContent) {
                 entityCard.toggleExpand();
             }
         }
