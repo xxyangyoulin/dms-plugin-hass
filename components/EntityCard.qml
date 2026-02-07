@@ -41,13 +41,11 @@ StyledRect {
     signal openIconPicker()
 
     function _getEffectiveState() {
-        if (!entityData) return "";
-        return HomeAssistantService.getEffectiveValue(entityData.entityId, "state", entityData.state || "");
+        return EntityHelper.getEffectiveState(entityData);
     }
 
     function _getEffectiveAttr(attr, real) {
-        if (!entityData) return real;
-        return HomeAssistantService.getEffectiveValue(entityData.entityId, attr, real);
+        return EntityHelper.getEffectiveValue(entityData, attr, real);
     }
 
     function _updateRelatedEntities() {

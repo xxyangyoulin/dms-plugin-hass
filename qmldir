@@ -1,2 +1,3 @@
 singleton HomeAssistantService 1.0 services/HomeAssistantService.qml
 singleton HassConstants 1.0 components/HassConstants.qml
+singleton EntityHelper 1.0 components/EntityHelper.qml

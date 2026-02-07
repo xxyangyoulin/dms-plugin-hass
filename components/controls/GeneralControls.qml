@@ -12,14 +12,7 @@ Column {
     required property var entityData
 
     function getVal(attr, def) {
-        if (!entityData)
-            return def;
-
-        if (attr === "state")
-            return HomeAssistantService.getEffectiveValue(entityData.entityId, "state", entityData.state);
-
-        const real = (entityData.attributes && entityData.attributes[attr] !== undefined) ? entityData.attributes[attr] : def;
-        return HomeAssistantService.getEffectiveValue(entityData.entityId, attr, real);
+        return EntityHelper.getEffectiveValue(entityData, attr, def);
     }
 
     width: parent.width

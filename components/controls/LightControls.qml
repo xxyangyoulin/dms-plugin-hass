@@ -13,11 +13,7 @@ Column {
 
     // Helper to get effective value (optimistic or real)
     function getVal(attr, def) {
-        if (!entityData)
-            return def;
-
-        const real = (entityData.attributes && entityData.attributes[attr] !== undefined) ? entityData.attributes[attr] : def;
-        return HomeAssistantService.getEffectiveValue(entityData.entityId, attr, real);
+        return EntityHelper.getEffectiveValue(entityData, attr, def);
     }
 
     width: parent.width
@@ -38,13 +34,13 @@ Column {
         GenericSlider {
             width: parent.width
             value: root.getVal("brightness", 0)
-            maxValue: 255
+            maxValue: HassConstants.defaultBrightnessMax
             icon: "brightness_6"
             onChanged: (v) => {
                 HomeAssistantService.setOptimisticState(entityData.entityId, "brightness", v);
                 HomeAssistantService.setBrightness(entityData.entityId, v);
             }
-            displayValue: Math.round((value / 255) * 100) + "%"
+            displayValue: Math.round((value / HassConstants.defaultBrightnessMax) * 100) + "%"
         }
 
     }
@@ -64,8 +60,8 @@ Column {
         GenericSlider {
             width: parent.width
             value: root.getVal("color_temp", 0)
-            minValue: root.getVal("min_mireds", 153)
-            maxValue: root.getVal("max_mireds", 500)
+            minValue: root.getVal("min_mireds", HassConstants.defaultColorTempMin)
+            maxValue: root.getVal("max_mireds", HassConstants.defaultColorTempMax)
             icon: "thermostat"
             isColorTemp: true
             onChanged: (v) => {
@@ -94,52 +90,7 @@ Column {
             spacing: Theme.spacingS
 
             Repeater {
-                model: [{
-                    "name": "White",
-                    "r": 255,
-                    "g": 255,
-                    "b": 255
-                }, {
-                    "name": "Red",
-                    "r": 255,
-                    "g": 0,
-                    "b": 0
-                }, {
-                    "name": "Orange",
-                    "r": 255,
-                    "g": 127,
-                    "b": 0
-                }, {
-                    "name": "Yellow",
-                    "r": 255,
-                    "g": 255,
-                    "b": 0
-                }, {
-                    "name": "Green",
-                    "r": 0,
-                    "g": 255,
-                    "b": 0
-                }, {
-                    "name": "Cyan",
-                    "r": 0,
-                    "g": 255,
-                    "b": 255
-                }, {
-                    "name": "Blue",
-                    "r": 0,
-                    "g": 0,
-                    "b": 255
-                }, {
-                    "name": "Purple",
-                    "r": 127,
-                    "g": 0,
-                    "b": 255
-                }, {
-                    "name": "Pink",
-                    "r": 255,
-                    "g": 0,
-                    "b": 127
-                }]
+                model: HassConstants.lightColorPalette
 
                 delegate: StyledRect {
                     width: 28

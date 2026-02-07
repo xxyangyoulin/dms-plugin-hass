@@ -80,8 +80,30 @@ QtObject {
 
     // Timings
     readonly property int optimisticTimeout: 3000
+    readonly property int optimisticCleanupInterval: 2000
+    readonly property int optimisticStateTimeout: 30000
+    readonly property int confirmationDelay: 1000  // 1 second delay for pending confirmations
     readonly property int refreshDelay: 500
     readonly property int historyHours: 24
+    readonly property int historyCacheDuration: 300000  // 5 minutes
+    readonly property int historyCleanupInterval: 600000  // 10 minutes
+
+    // WebSocket
+    readonly property int wsPingInterval: 30000  // 30 seconds
+    readonly property int callbackGcInterval: 30000  // 30 seconds
+    readonly property int callbackTimeout: 60000  // 60 seconds
+    readonly property int initialReconnectInterval: 5000  // 5 seconds
+    readonly property int maxReconnectInterval: 60000  // 1 minute
+
+    // Light defaults
+    readonly property int defaultBrightnessMin: 0
+    readonly property int defaultBrightnessMax: 255
+    readonly property int defaultColorTempMin: 153  // mireds
+    readonly property int defaultColorTempMax: 500  // mireds
+
+    // HTTP request
+    readonly property int httpRequestTimeout: 10000  // 10 seconds
+    readonly property int maxRequestRetries: 2
 
     // ========== Feature Bitmasks (from Home Assistant) ==========
     // Fan Features: https://github.com/home-assistant/core/blob/dev/homeassistant/components/fan/__init__.py
@@ -148,6 +170,19 @@ QtObject {
     function getIconForDomain(domain) {
         return domainIcons[domain] || "sensors";
     }
+
+    // Predefined color palette for light color selection
+    readonly property var lightColorPalette: [
+        { name: "White", r: 255, g: 255, b: 255 },
+        { name: "Red", r: 255, g: 0, b: 0 },
+        { name: "Orange", r: 255, g: 127, b: 0 },
+        { name: "Yellow", r: 255, g: 255, b: 0 },
+        { name: "Green", r: 0, g: 255, b: 0 },
+        { name: "Cyan", r: 0, g: 255, b: 255 },
+        { name: "Blue", r: 0, g: 0, b: 255 },
+        { name: "Purple", r: 127, g: 0, b: 255 },
+        { name: "Pink", r: 255, g: 0, b: 127 }
+    ]
 
     function isControllableDomain(domain) {
         return controllableDomains.indexOf(domain) >= 0;

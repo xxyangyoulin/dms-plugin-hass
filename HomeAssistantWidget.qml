@@ -81,15 +81,21 @@ PluginComponent {
     ListModel {
         id: monitoredListModel
     }
-    
+
     // Track last sync state to avoid redundant operations
     property string _lastSyncHash: ""
 
     function syncMonitoredList() {
         const entities = globalEntities.value || [];
-        
+
+        // Get optimistic states from HomeAssistantService
+        const optimisticStates = HomeAssistantService.optimisticStates || {};
+
         // Fast path: check if any changes at all (quick hash check)
-        const newHash = entities.map(e => `${e.entityId}:${e.state}:${e.friendlyName}:${e.lastUpdated}`).join(",");
+        // Include optimistic states in hash to detect relevant changes
+        const optimisticKeys = Object.keys(optimisticStates).sort();
+        const optimisticHash = optimisticKeys.map(id => `${id}:${JSON.stringify(optimisticStates[id])}`).join("|");
+        const newHash = entities.map(e => `${e.entityId}:${e.state}:${e.friendlyName}:${e.lastUpdated}`).join(",") + "|" + optimisticHash;
         if (newHash === _lastSyncHash && monitoredListModel.count === entities.length) {
             return;
         }
@@ -106,7 +112,25 @@ PluginComponent {
         // Just update values, no structural change
         if (JSON.stringify(currentIds) === JSON.stringify(newIds)) {
             for (let i = 0; i < entities.length; i++) {
-                monitoredListModel.set(i, entities[i]);
+                const entity = entities[i];
+                // Apply optimistic state overrides if present
+                const entityOptimisticStates = optimisticStates[entity.entityId];
+                if (entityOptimisticStates) {
+                    // Create a copy with optimistic states applied
+                    const updatedEntity = Object.assign({}, entity);
+                    for (const key in entityOptimisticStates) {
+                        if (key === "state") {
+                            updatedEntity.state = entityOptimisticStates[key];
+                        } else if (updatedEntity.attributes) {
+                            // For attributes, we need to merge them
+                            updatedEntity.attributes = Object.assign({}, updatedEntity.attributes);
+                            updatedEntity.attributes[key] = entityOptimisticStates[key];
+                        }
+                    }
+                    monitoredListModel.set(i, updatedEntity);
+                } else {
+                    monitoredListModel.set(i, entity);
+                }
             }
             return;
         }
@@ -114,7 +138,24 @@ PluginComponent {
         // Full rebuild
         monitoredListModel.clear();
         for (const ent of entities) {
-            monitoredListModel.append(ent);
+            // Apply optimistic state overrides if present
+            const entityOptimisticStates = optimisticStates[ent.entityId];
+            if (entityOptimisticStates) {
+                // Create a copy with optimistic states applied
+                const updatedEntity = Object.assign({}, ent);
+                for (const key in entityOptimisticStates) {
+                    if (key === "state") {
+                        updatedEntity.state = entityOptimisticStates[key];
+                    } else if (updatedEntity.attributes) {
+                        // For attributes, we need to merge them
+                        updatedEntity.attributes = Object.assign({}, updatedEntity.attributes);
+                        updatedEntity.attributes[key] = entityOptimisticStates[key];
+                    }
+                }
+                monitoredListModel.append(updatedEntity);
+            } else {
+                monitoredListModel.append(ent);
+            }
         }
     }
 
@@ -122,6 +163,39 @@ PluginComponent {
         target: globalEntities
         function onValueChanged() {
             cleanupPinnedEntities();
+            syncMonitoredList();
+        }
+    }
+
+    Connections {
+        target: HomeAssistantService
+        function onEntityDataChanged(entityId) {
+            // Get the latest entity data from HomeAssistantService
+            const entityData = HomeAssistantService.getEntityData(entityId);
+            if (!entityData) return;
+
+            // Update the entity in the ListModel
+            for (var i = 0; i < monitoredListModel.count; i++) {
+                var current = monitoredListModel.get(i);
+                if (current.entityId === entityId) {
+                    monitoredListModel.set(i, {
+                        entityId: entityData.entityId,
+                        domain: entityData.domain,
+                        state: entityData.state,
+                        friendlyName: entityData.friendlyName,
+                        unitOfMeasurement: entityData.unitOfMeasurement || "",
+                        attributes: entityData.attributes || {}
+                    });
+                    break;
+                }
+            }
+        }
+    }
+
+    Connections {
+        target: HomeAssistantService
+        function onPendingConfirmationResolved(entityId) {
+            // 1 second passed, sync to ensure UI shows actual state
             syncMonitoredList();
         }
     }

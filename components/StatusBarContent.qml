@@ -11,15 +11,13 @@ Item {
     property int orientation: Qt.Horizontal // or Qt.Vertical
     property bool haAvailable: false
     property int entityCount: 0
-    property var globalEntities: []  // All monitored entities
+    property var globalEntities: []  // All monitored entities (already includes optimistic states)
     property var pinnedEntityIds: []  // List of pinned entity IDs
     property var customIcons: ({})
     property real barThickness: 0
     property bool showHomeIcon: true
     property bool showButtonsOnStatusBar: true
 
-    // Optimistic state cache for immediate UI feedback
-    property var optimisticStates: ({})
     property string _lastPinnedIdsStr: ""
 
     // ListModel for efficient incremental updates
@@ -30,6 +28,32 @@ Item {
     // Sync model when data changes
     onGlobalEntitiesChanged: syncModel()
     onPinnedEntityIdsChanged: syncModel()
+
+    // Listen for entity data changes from HomeAssistantService (unified signal)
+    Connections {
+        target: HomeAssistantService
+        function onEntityDataChanged(entityId) {
+            // Get the latest entity data from HomeAssistantService
+            const entityData = HomeAssistantService.getEntityData(entityId);
+            if (!entityData) return;
+
+            // Update the entity in the ListModel
+            for (var i = 0; i < pinnedEntitiesModel.count; i++) {
+                var current = pinnedEntitiesModel.get(i);
+                if (current.entityId === entityId) {
+                    pinnedEntitiesModel.set(i, {
+                        entityId: entityData.entityId,
+                        domain: entityData.domain,
+                        state: entityData.state,
+                        friendlyName: entityData.friendlyName,
+                        unitOfMeasurement: entityData.unitOfMeasurement || "",
+                        attributes: entityData.attributes || {}
+                    });
+                    break;
+                }
+            }
+        }
+    }
 
     function syncModel() {
         const entities = globalEntities || [];
@@ -46,8 +70,6 @@ Item {
         // Check if structure changed
         if (currentIdsStr !== _lastPinnedIdsStr || pinnedEntitiesModel.count !== pinnedIds.length) {
             _lastPinnedIdsStr = currentIdsStr;
-            // Full rebuild - clear all optimistic states
-            optimisticStates = {};
             // Full rebuild
             pinnedEntitiesModel.clear();
             for (let i = 0; i < pinnedIds.length; i++) {
@@ -66,7 +88,6 @@ Item {
             }
         } else {
             // Incremental update - only update changed entities
-            var statesChanged = false;
             for (let i = 0; i < pinnedIds.length; i++) {
                 const id = pinnedIds[i];
                 const e = entityMap[id];
@@ -75,34 +96,18 @@ Item {
                 // Get current model data
                 const current = pinnedEntitiesModel.get(i);
 
-                // Check if we have an optimistic state for this entity
-                const optimistic = optimisticStates[id];
-
-                // If HA reports a different state than our optimistic state, clear the optimistic state
-                if (optimistic && optimistic !== e.state) {
-                    delete optimisticStates[id];
-                    statesChanged = true;
-                }
-
-                // Use actual state from HA (optimistic state was cleared above if different)
-                const effectiveState = optimisticStates[id] || e.state;
-
                 // Only update if something actually changed
-                if (current.state !== effectiveState) {
+                // Note: e.state already includes optimistic states from HomeAssistantService
+                if (current.state !== e.state) {
                     pinnedEntitiesModel.set(i, {
                         entityId: e.entityId,
                         domain: e.domain,
-                        state: effectiveState,
+                        state: e.state,
                         friendlyName: e.friendlyName,
                         unitOfMeasurement: e.unitOfMeasurement || "",
                         attributes: e.attributes || {}
                     });
                 }
-            }
-
-            // Update optimisticStates property if any were cleared
-            if (statesChanged) {
-                optimisticStates = Object.assign({}, optimisticStates);
             }
         }
     }
@@ -115,21 +120,6 @@ Item {
     // Helper functions
     function getEntityIcon(entityId, domain) {
         return customIcons[entityId] || HassConstants.getIconForDomain(domain);
-    }
-
-    function setOptimisticState(entityId, state) {
-        var states = Object.assign({}, optimisticStates);
-        states[entityId] = state;
-        optimisticStates = states;
-
-        // Immediately update the model for this entity
-        for (var i = 0; i < pinnedEntitiesModel.count; i++) {
-            var e = pinnedEntitiesModel.get(i);
-            if (e.entityId === entityId) {
-                pinnedEntitiesModel.set(i, { state: state });
-                break;
-            }
-        }
     }
 
     function isSwitchable(entity) {
@@ -340,8 +330,9 @@ Item {
         }
 
         // Set optimistic state for immediate UI feedback
+        // This now goes directly to HomeAssistantService, which will trigger syncModel()
         if (nextState !== state) {
-            setOptimisticState(id, nextState);
+            HomeAssistantService.setOptimisticState(id, "state", nextState);
         }
     }
 }
