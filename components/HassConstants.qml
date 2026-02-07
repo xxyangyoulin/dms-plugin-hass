@@ -215,6 +215,8 @@ QtObject {
     function formatStateValue(state, unitOfMeasurement) {
         var val = state || "?";
         var unit = unitOfMeasurement || "";
+        // Hide unit when state is unavailable or unknown
+        if (val === "unavailable" || val === "unknown") return val;
         return unit ? val + unit : val;
     }
 

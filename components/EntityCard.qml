@@ -170,7 +170,10 @@ StyledRect {
             id: entityIcon
             name: entityCard._getEntityIcon(entityData && entityData.entityId ? entityData.entityId : "", entityData && entityData.domain ? entityData.domain : "")
             size: 24
-            color: Components.HassConstants.getStateColor(entityData && entityData.domain ? entityData.domain : "", entityCard._getEffectiveState(), Theme)
+            color: {
+                var state = entityCard._getEffectiveState();
+                return (state === "unavailable" || state === "unknown") ? Theme.warning : Components.HassConstants.getStateColor(entityData && entityData.domain ? entityData.domain : "", state, Theme);
+            }
             anchors.centerIn: parent
 
             RotationAnimation on rotation {
@@ -256,7 +259,10 @@ StyledRect {
             text: Components.HassConstants.formatStateValue(entityCard._getEffectiveState(), entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "")
             font.pixelSize: Theme.fontSizeSmall
             font.weight: Font.DemiBold
-            color: Theme.primary
+            color: {
+                var state = entityCard._getEffectiveState();
+                return (state === "unavailable" || state === "unknown") ? Theme.warning : Theme.primary;
+            }
             width: parent.width
             wrapMode: Text.Wrap
             maximumLineCount: 3

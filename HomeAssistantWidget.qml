@@ -15,6 +15,10 @@ PluginComponent {
     property var pinnedEntities: pluginData.pinnedEntities || []
     property var customIcons: pluginData.customIcons || ({})
 
+    // Cache for status bar - use computed properties to ensure proper scope
+    readonly property var cachedGlobalEntities: globalEntities.value || []
+    readonly property var cachedPinnedEntities: pinnedEntities
+
     property string selectedEntityId: ""
     property string iconPickerEntityId: ""
     property string iconSearchText: ""
@@ -399,7 +403,8 @@ PluginComponent {
         orientation: Qt.Horizontal
         haAvailable: globalHaAvailable.value
         entityCount: globalEntityCount.value
-        pinnedEntitiesData: root.pinnedEntitiesData
+        globalEntities: root.cachedGlobalEntities
+        pinnedEntityIds: root.cachedPinnedEntities
         customIcons: root.customIcons
         barThickness: root.barThickness
         showHomeIcon: pluginData.showHomeIcon !== undefined ? pluginData.showHomeIcon : true
@@ -410,7 +415,8 @@ PluginComponent {
         orientation: Qt.Vertical
         haAvailable: globalHaAvailable.value
         entityCount: globalEntityCount.value
-        pinnedEntitiesData: root.pinnedEntitiesData
+        globalEntities: root.cachedGlobalEntities
+        pinnedEntityIds: root.cachedPinnedEntities
         customIcons: root.customIcons
         barThickness: root.barThickness
         showHomeIcon: pluginData.showHomeIcon !== undefined ? pluginData.showHomeIcon : true
