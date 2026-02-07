@@ -7,8 +7,11 @@ import "."
 
 Column {
     id: shortcutsGridRoot
-    
+
     property bool isEditing: false
+
+    // Top spacer for consistent spacing
+    Item { width: 1; height: Theme.spacingS }
     property string selectedShortcutId: ""
     
     // Signals
@@ -126,7 +129,7 @@ Column {
             }
         }
     }
-    
+
     // Spacer
     Item { width: 1; height: Theme.spacingS }
 }

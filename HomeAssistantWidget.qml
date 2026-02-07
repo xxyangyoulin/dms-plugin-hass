@@ -685,10 +685,10 @@ PluginComponent {
                     height: {
                         const headerHeight = 46;
                         const browserHeight = root.showEntityBrowser ? 400 : 0;
-                        const bottomPadding = Theme.spacingXL;
+                        const bottomPadding = Theme.spacingS;
                         return root.popoutHeight - headerHeight - browserHeight - bottomPadding;
                     }
-                    topMargin: Theme.spacingS
+                    topMargin: 0
                     bottomMargin: Theme.spacingM
                     leftMargin: Theme.spacingM
                     rightMargin: Theme.spacingM
@@ -761,7 +761,7 @@ PluginComponent {
                     height: {
                         const headerHeight = 46;
                         const browserHeight = root.showEntityBrowser ? 400 : 0;
-                        const bottomPadding = Theme.spacingXL;
+                        const bottomPadding = Theme.spacingS;
                         return root.popoutHeight - headerHeight - browserHeight - bottomPadding;
                     }
                     visible: globalEntities.value.length === 0 && !root.showEntityBrowser
