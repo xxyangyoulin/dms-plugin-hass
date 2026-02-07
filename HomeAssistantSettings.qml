@@ -34,4 +34,11 @@ PluginSettings {
         description: "Display additional entity attributes when expanding entities in the widget"
         defaultValue: false
     }
+
+    ToggleSetting {
+        settingKey: "showButtonsOnStatusBar"
+        label: "Show Buttons on Status Bar"
+        description: "Display control buttons (e.g., switches) for pinned entities on the status bar. When disabled, only the entity state will be shown."
+        defaultValue: true
+    }
 }

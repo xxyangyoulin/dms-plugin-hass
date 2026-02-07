@@ -74,12 +74,6 @@ PluginComponent {
         defaultValue: []
     }
 
-    PluginGlobalVar {
-        id: globalRefreshCounter
-        varName: "haRefreshCounter"
-        defaultValue: 0
-    }
-
     ListModel {
         id: monitoredListModel
     }
@@ -358,8 +352,10 @@ PluginComponent {
 
     function refreshEntities() {
         // Increment refresh counter to reset entity card expand caches
-        var currentCounter = globalRefreshCounter.value || 0;
-        globalRefreshCounter.value = currentCounter + 1;
+        var currentCounter = pluginData.haRefreshCounter || 0;
+        if (pluginService) {
+            pluginService.savePluginData("homeAssistantMonitor", "haRefreshCounter", currentCounter + 1);
+        }
         HomeAssistantService.refresh();
         ToastService.showInfo(I18n.tr("Refreshing Home Assistant entities...", "Entity refresh notification"));
     }
@@ -407,6 +403,7 @@ PluginComponent {
         customIcons: root.customIcons
         barThickness: root.barThickness
         showHomeIcon: pluginData.showHomeIcon !== undefined ? pluginData.showHomeIcon : true
+        showButtonsOnStatusBar: pluginData.showButtonsOnStatusBar !== undefined ? pluginData.showButtonsOnStatusBar : true
     }
 
     verticalBarPill: StatusBarContent {
@@ -417,6 +414,7 @@ PluginComponent {
         customIcons: root.customIcons
         barThickness: root.barThickness
         showHomeIcon: pluginData.showHomeIcon !== undefined ? pluginData.showHomeIcon : true
+        showButtonsOnStatusBar: pluginData.showButtonsOnStatusBar !== undefined ? pluginData.showButtonsOnStatusBar : true
     }
 
     // Lazy-loaded popout content for better performance

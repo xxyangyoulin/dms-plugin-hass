@@ -15,6 +15,7 @@ Item {
     property var customIcons: ({})
     property real barThickness: 0
     property bool showHomeIcon: true
+    property bool showButtonsOnStatusBar: true
 
     implicitWidth: layout.implicitWidth
     implicitHeight: layout.implicitHeight
@@ -116,13 +117,13 @@ Item {
 
                 Loader {
                     anchors.verticalCenter: parent.verticalCenter
-                    active: root.isSwitchable(modelData)
+                    active: root.isSwitchable(modelData) && root.showButtonsOnStatusBar
                     visible: active
                     sourceComponent: switchComponent
                 }
 
                 StyledText {
-                    visible: !root.isSwitchable(modelData)
+                    visible: !root.isSwitchable(modelData) || !root.showButtonsOnStatusBar
                     text: HassConstants.formatStateValue(modelData.state, modelData.unitOfMeasurement)
                     font.pixelSize: Theme.fontSizeSmall
                     color: Theme.widgetTextColor || Theme.surfaceText
@@ -146,13 +147,13 @@ Item {
 
                 Loader {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    active: root.isSwitchable(modelData)
+                    active: root.isSwitchable(modelData) && root.showButtonsOnStatusBar
                     visible: active
                     sourceComponent: switchComponentVertical
                 }
 
                 StyledText {
-                    visible: !root.isSwitchable(modelData)
+                    visible: !root.isSwitchable(modelData) || !root.showButtonsOnStatusBar
                     text: HassConstants.formatStateValue(modelData.state, modelData.unitOfMeasurement)
                     font.pixelSize: Theme.fontSizeSmall
                     color: Theme.widgetTextColor || Theme.surfaceText
