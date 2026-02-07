@@ -220,12 +220,9 @@ Item {
                 }
 
                 StyledText {
-                    visible: !root.isSwitchable(model) || !root.showButtonsOnStatusBar
+                    visible: (!root.isSwitchable(model) || !root.showButtonsOnStatusBar) && model.state !== "unavailable" && model.state !== "unknown"
                     text: {
                         var state = model.state;
-                        if (state === "unavailable" || state === "unknown") {
-                            return "-";
-                        }
                         return HassConstants.formatStateValue(state, model.unitOfMeasurement);
                     }
                     font.pixelSize: Theme.fontSizeSmall
@@ -262,12 +259,9 @@ Item {
                 }
 
                 StyledText {
-                    visible: !root.isSwitchable(model) || !root.showButtonsOnStatusBar
+                    visible: (!root.isSwitchable(model) || !root.showButtonsOnStatusBar) && model.state !== "unavailable" && model.state !== "unknown"
                     text: {
                         var state = model.state;
-                        if (state === "unavailable" || state === "unknown") {
-                            return "-";
-                        }
                         return HassConstants.formatStateValue(state, model.unitOfMeasurement);
                     }
                     font.pixelSize: Theme.fontSizeSmall
@@ -308,7 +302,8 @@ Item {
     function handleToggle(modelData) {
         var domain = modelData.domain;
         var id = modelData.entityId;
-        var state = modelData.state;
+        // Use actual state instead of optimistic state for toggle logic
+        var state = HomeAssistantService.getActualState(id) || modelData.state;
 
         // Predict next state for optimistic UI
         var nextState = state;

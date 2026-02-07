@@ -34,7 +34,15 @@ PluginComponent {
     }
 
     function cleanupPinnedEntities() {
+        // Only cleanup if we actually have entity data
+        // Don't cleanup when service is unavailable (empty entities)
         var entities = globalEntities.value || [];
+
+        // Skip cleanup if entities list is empty (service unavailable or still loading)
+        if (entities.length === 0) {
+            return;
+        }
+
         var entityIds = entities.map(function(e) { return e.entityId; });
         var pinned = pinnedEntities.filter(function(id) {
             return entityIds.indexOf(id) >= 0;

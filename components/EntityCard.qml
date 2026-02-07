@@ -437,7 +437,8 @@ StyledRect {
             onClicked: {
                 var domain = entityData.domain;
                 var entityId = entityData.entityId;
-                var state = entityData.state;
+                // Use actual state instead of optimistic state for toggle logic
+                var state = HomeAssistantService.getActualState(entityId) || entityData.state;
                 var friendlyName = entityData.friendlyName;
                 if (domain === "script" || domain === "automation") {
                     HomeAssistantService.triggerScript(entityId);

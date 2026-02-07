@@ -170,16 +170,20 @@ Singleton {
                     haAvailable = false;
                     latency = -1;
                     PluginService.setGlobalVar(pluginId, "latency", -1);
+                    PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
                     clearCallbacks("WebSocket Error: " + wsLoader.item.errorString);
                     reconnectTimer.start();
                 } else if (status === root.wsClosed) {
                     haAvailable = false;
                     latency = -1;
                     PluginService.setGlobalVar(pluginId, "latency", -1);
+                    PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
                     clearCallbacks("WebSocket Closed");
                     reconnectTimer.start();
                 } else if (status === root.wsOpen) {
                     currentReconnectInterval = 5000;
+                    haAvailable = true;
+                    PluginService.setGlobalVar(pluginId, "haAvailable", true);  // Notify UI immediately
                     reconnectTimer.stop();
                     pingTimer.start();
                 }
@@ -460,7 +464,8 @@ Singleton {
             }));
         } else if (data.type === "auth_ok") {
             haAvailable = true;
-            
+            PluginService.setGlobalVar(pluginId, "haAvailable", true);  // Notify UI immediately
+
             // Subscribe to state changes
             sendWsMessage({ type: "subscribe_events", event_type: "state_changed" });
             
@@ -482,6 +487,7 @@ Singleton {
         } else if (data.type === "auth_invalid") {
             console.error("HomeAssistantMonitor: WebSocket Auth Failed:", data.message);
             haAvailable = false;
+            PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
             socket.active = false;
         } else if (data.type === "event") {
             if (data.event.event_type === "state_changed") {
@@ -883,6 +889,7 @@ Singleton {
         if (!hassUrl || !hassToken) {
             updateEntities([]);
             haAvailable = false;
+            PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
             return;
         }
 
@@ -954,7 +961,9 @@ Singleton {
                 } catch (e) {
                     console.error("HomeAssistantMonitor: Failed to parse HA response:", e);
                     haAvailable = false;
-                    updateEntities([]);
+                    PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
+                    // Keep old data, don't clear (consistent with network failure handling)
+                    updateEntities(cachedAllEntities);
                 }
             } else {
                 console.error("HomeAssistantMonitor: Failed to fetch entities");
@@ -1345,16 +1354,28 @@ Singleton {
         optimisticStates = states;
         optimisticTimestamps = timestamps;
 
-        // For state changes, create a pending confirmation entry
+        // For state changes, create or update pending confirmation entry
         if (key === "state") {
             var pending = Object.assign({}, pendingConfirmations);
             var actualState = getActualState(entityId);
-            pending[entityId] = {
-                optimisticState: value,
-                actualState: actualState,
-                timestamp: Date.now(),
-                confirmed: false
-            };
+
+            // If there's already a pending confirmation for this entity,
+            // update it and reset the timestamp (extend the window to 1s from now)
+            if (pending[entityId] && !pending[entityId].confirmed) {
+                // Update existing pending confirmation, reset timestamp to 1s from now
+                pending[entityId].optimisticState = value;
+                pending[entityId].actualState = actualState;
+                pending[entityId].timestamp = Date.now();  // Reset to new 1s window
+                // Note: we keep the latest actual state
+            } else {
+                // Create new pending confirmation
+                pending[entityId] = {
+                    optimisticState: value,
+                    actualState: actualState,
+                    timestamp: Date.now(),
+                    confirmed: false
+                };
+            }
             pendingConfirmations = pending;
 
             // Start the confirmation timer for this entity
