@@ -27,3 +27,8 @@ Monitor and control your Home Assistant entities directly from your status bar.
 ## Permissions
 
 - `settings_read` / `settings_write`
+
+## Feedback & Contributions
+
+Suggestions for improvements and feature requests are always welcome.  
+If you have ideas, encounter issues, or want to see new features, feel free to open an issue or submit a pull request.
