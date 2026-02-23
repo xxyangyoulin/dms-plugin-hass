@@ -35,8 +35,14 @@ Column {
         columnSpacing: Theme.spacingS
         rowSpacing: Theme.spacingS
 
-        // Calculate columns: (width + spacing) / (minWidth + spacing)
-        columns: Math.max(1, Math.floor((width + columnSpacing) / (100 + columnSpacing)))
+        // Fixed columns: 1, 2, or 3 based on available width
+        columns: {
+            const minWidth = 100 + columnSpacing;
+            const availableWidth = width + columnSpacing;
+            if (availableWidth >= minWidth * 3) return 3;
+            if (availableWidth >= minWidth * 2) return 2;
+            return 1;
+        }
 
         focus: true
         Keys.enabled: shortcutsGridRoot.isEditing && shortcutsGridRoot.selectedShortcutId !== ""

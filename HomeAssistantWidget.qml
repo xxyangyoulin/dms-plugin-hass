@@ -699,8 +699,7 @@ PluginComponent {
                     currentIndex: root.keyboardNavigationActive ? globalEntities.value.findIndex(e => e.entityId === root.selectedEntityId) : -1
 
                     header: ShortcutsGrid {
-                        width: parent.width - entityList.leftMargin - entityList.rightMargin
-                        x: entityList.leftMargin
+                        width: entityList.width - entityList.leftMargin - entityList.rightMargin
                         isEditing: root.isEditing
                     }
 

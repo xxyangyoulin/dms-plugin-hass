@@ -14,12 +14,72 @@ PluginSettings {
         placeholder: "http://homeassistant.local:8123"
     }
 
-    StringSetting {
-        settingKey: "hassToken"
-        label: "Long-Lived Access Token"
-        description: "Generate a token from your HA profile page (Settings → Profile → Long-Lived Access Tokens). Keep this secure!"
-        defaultValue: ""
-        placeholder: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    // Custom password field for token
+    Column {
+        id: tokenSetting
+        width: parent.width
+        spacing: Theme.spacingS
+
+        property string value: ""
+        property bool isInitialized: false
+
+        function findSettings() {
+            let item = parent
+            while (item) {
+                if (item.saveValue !== undefined && item.loadValue !== undefined) {
+                    return item
+                }
+                item = item.parent
+            }
+            return null
+        }
+
+        function loadSettingValue() {
+            const settings = findSettings()
+            if (settings && settings.pluginService) {
+                const loadedValue = settings.loadValue("hassToken", "")
+                value = loadedValue
+                tokenField.text = loadedValue
+                isInitialized = true
+            }
+        }
+
+        Component.onCompleted: Qt.callLater(loadSettingValue)
+
+        onValueChanged: {
+            if (!isInitialized) return
+            const settings = findSettings()
+            if (settings) {
+                settings.saveValue("hassToken", value)
+            }
+        }
+
+        StyledText {
+            text: "Long-Lived Access Token"
+            font.pixelSize: Theme.fontSizeMedium
+            font.weight: Font.Medium
+            color: Theme.surfaceText
+        }
+
+        StyledText {
+            text: "Generate a token from your HA profile page (Settings → Profile → Long-Lived Access Tokens). Keep this secure!"
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.surfaceVariantText
+            width: parent.width
+            wrapMode: Text.WordWrap
+        }
+
+        DankTextField {
+            id: tokenField
+            width: parent.width
+            placeholderText: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            echoMode: TextInput.Password
+            onTextEdited: tokenSetting.value = text
+            onEditingFinished: tokenSetting.value = text
+            onActiveFocusChanged: {
+                if (!activeFocus) tokenSetting.value = text
+            }
+        }
     }
 
     Rectangle {
