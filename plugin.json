@@ -2,7 +2,7 @@
     "id": "homeAssistantMonitor",
     "name": "Home Assistant Monitor",
     "description": "Monitor and display Home Assistant entity states in your status bar",
-    "version": "1.2.5",
+    "version": "1.2.6",
     "author": "xxyangyoulin",
     "component": "./HomeAssistantWidget.qml",
     "icon": "home",
