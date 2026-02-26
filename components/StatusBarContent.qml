@@ -152,6 +152,7 @@ Item {
 
         HaCount {
             entityCount: root.entityCount
+            barThickness: root.barThickness
             anchors.verticalCenter: parent.verticalCenter
             visible: pinnedEntitiesModel.count === 0
         }
@@ -180,6 +181,7 @@ Item {
 
         HaCount {
             entityCount: root.entityCount
+            barThickness: root.barThickness
             anchors.horizontalCenter: parent.horizontalCenter
             visible: pinnedEntitiesModel.count === 0
         }
@@ -202,7 +204,7 @@ Item {
 
                 DankIcon {
                     name: root.getEntityIcon(model.entityId, model.domain)
-                    size: Theme.barIconSize(root.barThickness, -6)
+                    size: Theme.barIconSize(root.barThickness, -4)
                     color: (model.state === "unavailable" || model.state === "unknown") ? Theme.warning : HassConstants.getStateColor(model.domain || "", model.state || "", Theme)
                     anchors.verticalCenter: parent.verticalCenter
                 }
@@ -225,7 +227,7 @@ Item {
                         var state = model.state;
                         return HassConstants.formatStateValue(state, model.unitOfMeasurement);
                     }
-                    font.pixelSize: Theme.fontSizeSmall
+                    font.pixelSize: Theme.barTextSize(root.barThickness)
                     color: (model.state === "unavailable" || model.state === "unknown") ? Theme.warning : (Theme.widgetTextColor || Theme.surfaceText)
                     height: parent.height
                     verticalAlignment: Text.AlignVCenter
@@ -241,7 +243,7 @@ Item {
 
                 DankIcon {
                     name: root.getEntityIcon(model.entityId, model.domain)
-                    size: Theme.barIconSize(root.barThickness, -6)
+                    size: Theme.barIconSize(root.barThickness)
                     color: (model.state === "unavailable" || model.state === "unknown") ? Theme.warning : HassConstants.getStateColor(model.domain || "", model.state || "", Theme)
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
@@ -264,7 +266,7 @@ Item {
                         var state = model.state;
                         return HassConstants.formatStateValue(state, model.unitOfMeasurement);
                     }
-                    font.pixelSize: Theme.fontSizeSmall
+                    font.pixelSize: Theme.barTextSize(root.barThickness)
                     color: (model.state === "unavailable" || model.state === "unknown") ? Theme.warning : (Theme.widgetTextColor || Theme.surfaceText)
                     anchors.horizontalCenter: parent.horizontalCenter
                 }

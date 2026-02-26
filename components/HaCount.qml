@@ -6,9 +6,10 @@ StyledText {
     id: root
 
     property int entityCount: 0
+    property int barThickness: 32
 
     text: entityCount.toString()
-    font.pixelSize: Theme.fontSizeMedium
+    font.pixelSize: Theme.barTextSize(barThickness)
     color: Theme.widgetTextColor || Theme.surfaceText
     visible: entityCount > 0
 }
