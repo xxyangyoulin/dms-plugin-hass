@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import qs.Common
 import qs.Services
 import "../components" as Components
@@ -14,7 +15,10 @@ Singleton {
 
     property bool haAvailable: false
     property string hassUrl: ""
-    property string hassToken: ""
+    property string hassTokenPath: ""
+    property string _tokenFromFile: ""
+    property string _tokenFromSettings: ""
+    property string hassToken: hassTokenPath !== "" ? _tokenFromFile : _tokenFromSettings
     property string entityIds: ""
     property int refreshInterval: 3
     property bool showAttributes: false
@@ -108,6 +112,18 @@ Singleton {
 
     property bool missingDependency: false
     property var socket: wsLoader.item
+
+    FileView {
+        id: tokenFileView
+        path: root.hassTokenPath
+        onTextChanged: {
+            root._tokenFromFile = tokenFileView.text().trim();
+            if (root.hassTokenPath !== "" && root._tokenFromFile === "") {
+                console.warn("HomeAssistantMonitor: Token file is empty or could not be read:", root.hassTokenPath);
+                root.hassTokenPath = "";
+            }
+        }
+    }
 
     Timer {
         id: callbackGcTimer
@@ -249,8 +265,8 @@ Singleton {
         }
 
         hassUrl = load("hassUrl", "http://homeassistant.local:8123");
-        var token = load("hassToken", "");
-        hassToken = token ? token.trim() : "";
+        _tokenFromSettings = load("hassToken", "").toString().trim();
+        hassTokenPath = load("hassTokenPath", "").toString().trim();
         
         entityIds = load("entityIds", "");
         refreshInterval = load("refreshInterval", 3);

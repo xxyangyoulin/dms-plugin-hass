@@ -14,6 +14,14 @@ PluginSettings {
         placeholder: "http://homeassistant.local:8123"
     }
 
+    StringSetting {
+        settingKey: "hassTokenPath"
+        label: "Long-Lived Acess Token Path"
+        description: "Path to a file containing the Long-Lived Access Token (e.g., /run/secrets/hass_token). Take precedence over the field below. Only absolute path is supported."
+        defaultValue: ""
+        placeholder: "/run/secrets/hass_token"
+    }
+
     // Custom password field for token
     Column {
         id: tokenSetting
