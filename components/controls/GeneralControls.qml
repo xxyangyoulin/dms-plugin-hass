@@ -10,6 +10,7 @@ Column {
     id: root
 
     required property var entityData
+    readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
 
     function getVal(attr, def) {
         return EntityHelper.getEffectiveValue(entityData, attr, def);
@@ -225,7 +226,7 @@ Column {
                         font.weight: Font.Bold
                         color: {
                             const current = root.getVal("state", "");
-                            return (current === modelData) ? Theme.onPrimary : Theme.surfaceText;
+                            return (current === modelData) ? root.selectedForegroundColor : Theme.surfaceText;
                         }
                     }
 

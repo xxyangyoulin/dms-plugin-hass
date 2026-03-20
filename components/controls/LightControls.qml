@@ -10,6 +10,7 @@ Column {
     id: root
 
     required property var entityData
+    readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
 
     // Helper to get effective value (optimistic or real)
     function getVal(attr, def) {
@@ -157,7 +158,7 @@ Column {
                         }
                         color: {
                             const current = root.getVal("effect", "");
-                            return (current === modelData) ? Theme.onPrimary : Theme.surfaceText;
+                            return (current === modelData) ? root.selectedForegroundColor : Theme.surfaceText;
                         }
                     }
 

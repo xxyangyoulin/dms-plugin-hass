@@ -17,6 +17,8 @@ Item {
     implicitHeight: 40
     implicitWidth: 200 // Default, but expands
 
+    readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
+
     // Find the index of the closest option to the current value
     function findClosestOptionIndex() {
         if (!root.options || root.options.length === 0 || root.value === null) {
@@ -78,7 +80,7 @@ Item {
                     DankIcon {
                         name: root.icon
                         size: 14
-                        color: btn.isSelected ? Theme.onPrimary : Theme.surfaceText
+                        color: btn.isSelected ? root.selectedForegroundColor : Theme.surfaceText
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
@@ -91,7 +93,7 @@ Item {
                         }
                         font.pixelSize: Theme.fontSizeSmall
                         font.weight: btn.isSelected ? Font.Bold : Font.Medium
-                        color: btn.isSelected ? Theme.onPrimary : Theme.surfaceText
+                        color: btn.isSelected ? root.selectedForegroundColor : Theme.surfaceText
                         anchors.verticalCenter: parent.verticalCenter
                     }
                 }
@@ -108,7 +110,7 @@ Item {
                     }
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: btn.isSelected ? Font.Bold : Font.Medium
-                    color: btn.isSelected ? Theme.onPrimary : Theme.surfaceText
+                    color: btn.isSelected ? root.selectedForegroundColor : Theme.surfaceText
                 }
                 
                 MouseArea {

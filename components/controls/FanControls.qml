@@ -17,6 +17,7 @@ Column {
 
     width: parent.width
     spacing: Theme.spacingS
+    readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
 
     // Speed
     Column {
@@ -105,14 +106,14 @@ Column {
                 DankIcon {
                     name: "cached"
                     size: 18
-                    color: root.getVal("oscillating", false) ? Theme.onPrimary : Theme.surfaceText
+                    color: root.getVal("oscillating", false) ? root.selectedForegroundColor : Theme.surfaceText
                 }
 
                 StyledText {
                     text: root.getVal("oscillating", false) ? I18n.tr("On", "State label") : I18n.tr("Off", "State label")
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.Medium
-                    color: root.getVal("oscillating", false) ? Theme.onPrimary : Theme.surfaceText
+                    color: root.getVal("oscillating", false) ? root.selectedForegroundColor : Theme.surfaceText
                 }
 
             }

@@ -22,6 +22,7 @@ StyledRect {
     readonly property bool isControllable: Components.HassConstants.isControllableDomain(entityData && entityData.domain ? entityData.domain : "")
     readonly property bool hasControls: _hasControls()
     readonly property bool hasExpandableContent: _computeHasExpandableContent()
+    readonly property color hoverTintColor: Theme.primary || Theme.surfaceText
     property bool _hasExpandedOnce: false
     property bool _hasActualContent: false
     property var historyData: []
@@ -143,12 +144,15 @@ StyledRect {
         }
     }
 
-    // Hover overlay layer
+    // Hover feedback stays on the card header so expanded controls keep their own elevation.
     Rectangle {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: entityCard.baseHeight
         radius: parent.radius
-        color: "#000000"
-        opacity: entityMouse.containsMouse ? 0.05 : 0
+        color: entityCard.hoverTintColor
+        opacity: entityMouse.containsMouse ? 0.06 : 0
         z: 2
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
     }

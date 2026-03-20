@@ -19,6 +19,7 @@ Item {
     
     implicitHeight: controlLoader.height
     implicitWidth: parent ? parent.width : 200
+    readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
     
     // Extract selector info from field definition
     readonly property var selector: fieldDef && fieldDef.selector ? fieldDef.selector : {}
@@ -76,14 +77,14 @@ Item {
                 DankIcon {
                     name: root.currentValue ? "check" : "close"
                     size: 18
-                    color: root.currentValue ? Theme.onPrimary : Theme.surfaceText
+                    color: root.currentValue ? root.selectedForegroundColor : Theme.surfaceText
                 }
                 
                 StyledText {
                     text: root.currentValue ? I18n.tr("On", "State label") : I18n.tr("Off", "State label")
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.Medium
-                    color: root.currentValue ? Theme.onPrimary : Theme.surfaceText
+                    color: root.currentValue ? root.selectedForegroundColor : Theme.surfaceText
                 }
             }
             

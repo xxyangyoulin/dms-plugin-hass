@@ -13,6 +13,7 @@ Column {
     
     width: parent ? parent.width : 200
     spacing: Theme.spacingM
+    readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
     
     // Check if services are loaded
     readonly property bool servicesReady: HomeAssistantService.servicesLoaded
@@ -139,14 +140,14 @@ Column {
                 DankIcon {
                     name: parent.parent.currentVal ? "check" : "close"
                     size: 18
-                    color: parent.parent.currentVal ? Theme.onPrimary : Theme.surfaceText
+                    color: parent.parent.currentVal ? root.selectedForegroundColor : Theme.surfaceText
                 }
                 
                 StyledText {
                     text: parent.parent.currentVal ? I18n.tr("On", "State label") : I18n.tr("Off", "State label")
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.Medium
-                    color: parent.parent.currentVal ? Theme.onPrimary : Theme.surfaceText
+                    color: parent.parent.currentVal ? root.selectedForegroundColor : Theme.surfaceText
                 }
             }
             
