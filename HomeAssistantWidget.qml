@@ -82,6 +82,18 @@ PluginComponent {
     }
 
     PluginGlobalVar {
+        id: globalConnectionStatus
+        varName: "haConnectionStatus"
+        defaultValue: "offline"
+    }
+
+    PluginGlobalVar {
+        id: globalConnectionMessage
+        varName: "haConnectionMessage"
+        defaultValue: ""
+    }
+
+    PluginGlobalVar {
         id: globalAllEntities
         varName: "allEntities"
         defaultValue: []
@@ -494,6 +506,8 @@ PluginComponent {
     horizontalBarPill: StatusBarContent {
         orientation: Qt.Horizontal
         haAvailable: globalHaAvailable.value
+        connectionStatus: globalConnectionStatus.value
+        connectionMessage: globalConnectionMessage.value
         entityCount: globalEntityCount.value
         globalEntities: root.cachedGlobalEntities
         pinnedEntityIds: root.cachedPinnedEntities
@@ -506,6 +520,8 @@ PluginComponent {
     verticalBarPill: StatusBarContent {
         orientation: Qt.Vertical
         haAvailable: globalHaAvailable.value
+        connectionStatus: globalConnectionStatus.value
+        connectionMessage: globalConnectionMessage.value
         entityCount: globalEntityCount.value
         globalEntities: root.cachedGlobalEntities
         pinnedEntityIds: root.cachedPinnedEntities
@@ -577,6 +593,7 @@ PluginComponent {
                 width: parent.width
                 
                 Rectangle {
+                    id: headerBar
                     width: parent.width
                     height: 46
                     color: "transparent"
@@ -594,6 +611,8 @@ PluginComponent {
                                 width: 8; height: 8; radius: 4
                                 anchors.verticalCenter: parent.verticalCenter
                                 color: {
+                                    if (globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline") return Theme.error;
+                                    if (globalConnectionStatus.value === "connecting" || globalConnectionStatus.value === "degraded") return Theme.warning;
                                     if (!globalHaAvailable.value) return Theme.error;
                                     if (globalLatency.value < 0) return Theme.surfaceVariantText;
                                     if (globalLatency.value < 50) return "#4caf50"; // Green
@@ -605,6 +624,9 @@ PluginComponent {
 
                             StyledText {
                                 text: {
+                                    if (globalConnectionStatus.value === "auth_error") return I18n.tr("Home Assistant authentication failed", "Home Assistant connection error");
+                                    if (globalConnectionStatus.value === "connecting") return I18n.tr("Connecting to Home Assistant", "Home Assistant status");
+                                    if (globalConnectionStatus.value === "degraded") return I18n.tr("Home Assistant connection degraded", "Home Assistant status");
                                     if (!globalHaAvailable.value) return I18n.tr("Home Assistant unavailable", "Home Assistant connection error");
                                     let base = I18n.tr("Monitoring", "Home Assistant status") + ` ${globalEntityCount.value} ` + I18n.tr("entities", "Home Assistant entity count");
                                     if (globalLatency.value >= 0) {
@@ -669,6 +691,52 @@ PluginComponent {
                     }
                 }
 
+                Rectangle {
+                    id: connectionBanner
+                    width: parent.width
+                    height: visible ? 34 : 0
+                    color: {
+                        if (globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline") {
+                            return Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.12);
+                        }
+                        return Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.12);
+                    }
+                    visible: ["connecting", "degraded", "offline", "auth_error"].indexOf(globalConnectionStatus.value) >= 0
+
+                    Row {
+                        anchors.fill: parent
+                        anchors.leftMargin: Theme.spacingM
+                        anchors.rightMargin: Theme.spacingM
+                        spacing: Theme.spacingS
+
+                        DankIcon {
+                            name: globalConnectionStatus.value === "connecting" ? "sync"
+                                  : (globalConnectionStatus.value === "degraded" ? "warning" : "error")
+                            size: 16
+                            color: globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline"
+                                ? Theme.error : Theme.warning
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        StyledText {
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: parent.width - 24
+                            elide: Text.ElideRight
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceText
+                            text: {
+                                if (globalConnectionMessage.value) return globalConnectionMessage.value;
+                                if (globalConnectionStatus.value === "connecting") return I18n.tr("Connecting to Home Assistant", "Connection banner");
+                                if (globalConnectionStatus.value === "degraded") return I18n.tr("Home Assistant connection is unstable", "Connection banner");
+                                if (globalConnectionStatus.value === "auth_error") return I18n.tr("Home Assistant authentication failed", "Connection banner");
+                                return I18n.tr("Home Assistant is offline", "Connection banner");
+                            }
+                        }
+                    }
+
+                    Behavior on height { NumberAnimation { duration: 150 } }
+                }
+
                 // Entity Browser
                 EntityBrowser {
                     id: entityBrowser
@@ -694,7 +762,7 @@ PluginComponent {
                     id: entityList
                     width: parent.width
                     height: {
-                        const headerHeight = 46;
+                        const headerHeight = headerBar.height + connectionBanner.height;
                         const browserHeight = root.showEntityBrowser ? 400 : 0;
                         const bottomPadding = Theme.spacingS;
                         return root.popoutHeight - headerHeight - browserHeight - bottomPadding;
@@ -769,13 +837,15 @@ PluginComponent {
                 EmptyState {
                     width: parent.width
                     height: {
-                        const headerHeight = 46;
+                        const headerHeight = headerBar.height + connectionBanner.height;
                         const browserHeight = root.showEntityBrowser ? 400 : 0;
                         const bottomPadding = Theme.spacingS;
                         return root.popoutHeight - headerHeight - browserHeight - bottomPadding;
                     }
                     visible: globalEntities.value.length === 0 && !root.showEntityBrowser
                     haAvailable: globalHaAvailable.value
+                    connectionStatus: globalConnectionStatus.value
+                    connectionMessage: globalConnectionMessage.value
                     entityCount: globalEntityCount.value
                 }
             }

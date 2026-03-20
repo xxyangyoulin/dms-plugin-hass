@@ -10,6 +10,8 @@ Item {
 
     property int orientation: Qt.Horizontal // or Qt.Vertical
     property bool haAvailable: false
+    property string connectionStatus: "offline"
+    property string connectionMessage: ""
     property int entityCount: 0
     property var globalEntities: []  // All monitored entities (already includes optimistic states)
     property var pinnedEntityIds: []  // List of pinned entity IDs
@@ -139,6 +141,7 @@ Item {
         HaIcon {
             barThickness: root.barThickness
             haAvailable: root.haAvailable
+            connectionStatus: root.connectionStatus
             entityCount: root.entityCount
             showHomeIcon: root.showHomeIcon
             anchors.verticalCenter: parent.verticalCenter
@@ -168,6 +171,7 @@ Item {
         HaIcon {
             barThickness: root.barThickness
             haAvailable: root.haAvailable
+            connectionStatus: root.connectionStatus
             entityCount: root.entityCount
             showHomeIcon: root.showHomeIcon
             anchors.horizontalCenter: parent.horizontalCenter

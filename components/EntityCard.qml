@@ -23,6 +23,10 @@ StyledRect {
     readonly property bool hasControls: _hasControls()
     readonly property bool hasExpandableContent: _computeHasExpandableContent()
     readonly property color hoverTintColor: Theme.primary || Theme.surfaceText
+    property var entityActionState: ({ status: "idle", action: "", message: "", updatedAt: 0 })
+    readonly property bool actionPending: entityActionState.status === "pending"
+    readonly property bool actionError: entityActionState.status === "error"
+    property int pendingDotsPhase: 0
     property bool _hasExpandedOnce: false
     property bool _hasActualContent: false
     property var historyData: []
@@ -103,13 +107,21 @@ StyledRect {
         return customIcons[entityId] || Components.HassConstants.getIconForDomain(domain);
     }
 
+    function _refreshActionState() {
+        entityActionState = HomeAssistantService.getEntityActionState(entityData && entityData.entityId ? entityData.entityId : "");
+    }
+
     width: parent ? parent.width : 300
     radius: Theme.cornerRadius * 1.5
     color: isCurrentItem ? (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh) : Theme.surfaceContainer
     border.width: isCurrentItem ? 2 : 0
     border.color: Theme.primary
 
-    onEntityDataChanged: _updateRelatedEntities()
+    onEntityDataChanged: {
+        _updateRelatedEntities();
+        _refreshActionState();
+    }
+    Component.onCompleted: _refreshActionState()
     onIsExpandedChanged: {
         if (!_hasExpandedOnce && isExpanded) _hasExpandedOnce = true;
         _updateRelatedEntities();
@@ -122,12 +134,39 @@ StyledRect {
     }
     onHistoryDataChanged: if (_hasExpandedOnce) _updateActualContent()
     onRelatedEntitiesChanged: if (_hasExpandedOnce) _updateActualContent()
+    onActionPendingChanged: {
+        if (actionPending) {
+            pendingDotsPhase = 0;
+            pendingDotsTimer.start();
+        } else {
+            pendingDotsTimer.stop();
+            pendingDotsPhase = 0;
+        }
+    }
+    Connections {
+        target: HomeAssistantService
+        function onEntityActionStateChanged(entityId) {
+            if (entityData && entityData.entityId === entityId) {
+                entityCard._refreshActionState();
+            }
+        }
+    }
     height: baseHeight + (isExpanded && hasControls ? Theme.spacingM + controlsLoader.height : 0) + (isExpanded ? Theme.spacingM + attributesColumn.height : 0)
 
     PluginGlobalVar {
         id: globalAllEntities
         varName: "allEntities"
         defaultValue: []
+    }
+
+    Timer {
+        id: pendingDotsTimer
+        interval: 300
+        repeat: true
+        running: entityCard.actionPending
+        onTriggered: {
+            entityCard.pendingDotsPhase = (entityCard.pendingDotsPhase + 1) % 3;
+        }
     }
 
     property int _lastRefreshCounter: 0
@@ -257,17 +296,55 @@ StyledRect {
             }
         }
 
-        StyledText {
-            text: Components.HassConstants.formatStateValue(entityCard._getEffectiveState(), entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "")
-            font.pixelSize: Theme.fontSizeSmall
-            font.weight: Font.DemiBold
-            color: {
-                var state = entityCard._getEffectiveState();
-                return (state === "unavailable" || state === "unknown") ? Theme.warning : Theme.primary;
-            }
+        Row {
             width: parent.width
-            wrapMode: Text.Wrap
-            maximumLineCount: 3
+            spacing: 4
+
+            StyledText {
+                text: {
+                    const stateText = Components.HassConstants.formatStateValue(entityCard._getEffectiveState(), entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "");
+                    if (entityCard.actionError) return stateText + " • " + I18n.tr("Failed", "Entity action failed");
+                    return stateText;
+                }
+                font.pixelSize: Theme.fontSizeSmall
+                font.weight: Font.DemiBold
+                color: {
+                    if (entityCard.actionError) return Theme.error;
+                    var state = entityCard._getEffectiveState();
+                    return (state === "unavailable" || state === "unknown") ? Theme.warning : Theme.primary;
+                }
+                width: entityCard.actionPending ? (parent.width - dotsRow.width - parent.spacing) : parent.width
+                wrapMode: Text.Wrap
+                maximumLineCount: 3
+                elide: Text.ElideRight
+            }
+
+            Row {
+                id: dotsRow
+                visible: entityCard.actionPending
+                spacing: 1
+
+                Repeater {
+                    model: 3
+
+                    StyledText {
+                        text: "•"
+                        font.pixelSize: Theme.fontSizeSmall
+                        font.weight: Font.Bold
+                        color: Theme.primary
+                        opacity: index <= entityCard.pendingDotsPhase ? 1 : 0.3
+                    }
+                }
+            }
+        }
+
+        StyledText {
+            visible: entityCard.actionError
+            text: entityCard.entityActionState.message || I18n.tr("The last action did not complete", "Entity action error detail")
+            font.pixelSize: Theme.fontSizeSmall - 1
+            color: Theme.error
+            width: parent.width
+            maximumLineCount: 1
             elide: Text.ElideRight
         }
     }
@@ -402,6 +479,7 @@ StyledRect {
         radius: 22
         visible: isControllable && !isEditing
         color: {
+            if (entityCard.actionError) return Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.16);
             const state = entityCard._getEffectiveState();
             const domain = entityData && entityData.domain ? entityData.domain : "";
             return Components.HassConstants.isActiveState(domain, state) ? Theme.primary : Theme.surfaceVariant;
@@ -420,6 +498,7 @@ StyledRect {
             name: {
                 var domain = entityData && entityData.domain ? entityData.domain : "";
                 var state = entityCard._getEffectiveState();
+                if (entityCard.actionError) return "error";
                 if (domain === "script" || domain === "automation") return "play_arrow";
                 if (domain === "scene") return "palette";
                 if (domain === "cover") return state === "open" ? "expand_more" : "expand_less";
@@ -429,6 +508,7 @@ StyledRect {
             }
             size: 22
             color: {
+                if (entityCard.actionError) return Theme.error;
                 var domain = entityData && entityData.domain ? entityData.domain : "";
                 var state = entityCard._getEffectiveState();
                 return Components.HassConstants.isActiveState(domain, state) ? Theme.primaryText : Theme.surfaceText;
@@ -438,6 +518,7 @@ StyledRect {
         MouseArea {
             id: controlMouse
             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; propagateComposedEvents: false
+            enabled: !entityCard.actionPending
             onClicked: {
                 var domain = entityData.domain;
                 var entityId = entityData.entityId;

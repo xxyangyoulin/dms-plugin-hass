@@ -9,11 +9,16 @@ DankIcon {
     property bool haAvailable: false
     property int entityCount: 0
     property bool showHomeIcon: true
+    property string connectionStatus: "offline"
 
     name: "home"
     size: Theme.barIconSize(barThickness, -4)
     visible: showHomeIcon
     color: {
+        if (connectionStatus === "auth_error" || connectionStatus === "offline")
+            return Theme.error;
+        if (connectionStatus === "degraded" || connectionStatus === "connecting")
+            return Theme.warning;
         if (!haAvailable)
             return Theme.error;
         if (entityCount > 0)
