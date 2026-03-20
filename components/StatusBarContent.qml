@@ -198,6 +198,8 @@ Item {
         Item {
             implicitWidth: root.orientation === Qt.Vertical ? root.barThickness : entityRowContent.implicitWidth
             implicitHeight: root.orientation === Qt.Vertical ? entityColumnContent.implicitHeight : root.barThickness
+            readonly property bool availabilityIssue: model.state === "unavailable" || model.state === "unknown"
+            readonly property color stateColor: availabilityIssue ? Theme.warning : HassConstants.getStateColor(model.domain || "", model.state || "", Theme)
 
             // Row Version (Horizontal orientation)
             Row {
@@ -209,7 +211,7 @@ Item {
                 DankIcon {
                     name: root.getEntityIcon(model.entityId, model.domain)
                     size: Theme.barIconSize(root.barThickness, -4)
-                    color: (model.state === "unavailable" || model.state === "unknown") ? Theme.warning : HassConstants.getStateColor(model.domain || "", model.state || "", Theme)
+                    color: stateColor
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
@@ -226,13 +228,13 @@ Item {
                 }
 
                 StyledText {
-                    visible: (!root.isSwitchable(model) || !root.showButtonsOnStatusBar) && model.state !== "unavailable" && model.state !== "unknown"
+                    visible: (!root.isSwitchable(model) || !root.showButtonsOnStatusBar) && !availabilityIssue
                     text: {
                         var state = model.state;
                         return HassConstants.formatStateValue(state, model.unitOfMeasurement);
                     }
                     font.pixelSize: Theme.barTextSize(root.barThickness)
-                    color: (model.state === "unavailable" || model.state === "unknown") ? Theme.warning : (Theme.widgetTextColor || Theme.surfaceText)
+                    color: Theme.widgetTextColor || Theme.surfaceText
                     height: parent.height
                     verticalAlignment: Text.AlignVCenter
                 }
@@ -248,7 +250,7 @@ Item {
                 DankIcon {
                     name: root.getEntityIcon(model.entityId, model.domain)
                     size: Theme.barIconSize(root.barThickness)
-                    color: (model.state === "unavailable" || model.state === "unknown") ? Theme.warning : HassConstants.getStateColor(model.domain || "", model.state || "", Theme)
+                    color: stateColor
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
 
@@ -265,13 +267,13 @@ Item {
                 }
 
                 StyledText {
-                    visible: (!root.isSwitchable(model) || !root.showButtonsOnStatusBar) && model.state !== "unavailable" && model.state !== "unknown"
+                    visible: (!root.isSwitchable(model) || !root.showButtonsOnStatusBar) && !availabilityIssue
                     text: {
                         var state = model.state;
                         return HassConstants.formatStateValue(state, model.unitOfMeasurement);
                     }
                     font.pixelSize: Theme.barTextSize(root.barThickness)
-                    color: (model.state === "unavailable" || model.state === "unknown") ? Theme.warning : (Theme.widgetTextColor || Theme.surfaceText)
+                    color: Theme.widgetTextColor || Theme.surfaceText
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
             }

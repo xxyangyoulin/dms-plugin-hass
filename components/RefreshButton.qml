@@ -2,10 +2,9 @@ import QtQuick
 import qs.Common
 import qs.Widgets
 
-Rectangle {
+PanelActionButton {
     id: root
 
-    signal clicked
     property bool spinning: false
     property int spinDuration: 900
     property bool animationActive: false
@@ -46,17 +45,16 @@ Rectangle {
         stopSpinTimer.restart();
     }
 
-    width: 36
-    height: 36
-    radius: Theme.cornerRadius
-    color: Qt.rgba(0, 0, 0, 0)
+    iconName: "refresh"
+    showIcon: false
+    busy: spinning
 
     DankIcon {
         id: refreshIcon
         anchors.centerIn: parent
-        name: "refresh"
+        name: root.iconName
         size: 18
-        color: Theme.surfaceText
+        color: (root.active || root.busy) ? (Theme.primary || Theme.surfaceText) : Theme.surfaceText
         rotation: 0
 
         RotationAnimation on rotation {
@@ -95,13 +93,5 @@ Rectangle {
         if (spinning) {
             startSpin();
         }
-    }
-
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: false
-        cursorShape: Qt.PointingHandCursor
-        enabled: !root.spinning
-        onClicked: root.clicked()
     }
 }

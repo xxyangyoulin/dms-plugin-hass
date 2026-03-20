@@ -9,9 +9,20 @@ Column {
     id: shortcutsGridRoot
 
     property bool isEditing: false
+    readonly property int chipHeight: 44
+    readonly property int shortcutCount: HomeAssistantService.shortcutsModel.count
+    readonly property int rowCount: shortcutCount > 0 ? Math.ceil(shortcutCount / Math.max(1, shortcutsGrid.columns)) : 0
+    readonly property int contentHeight: topSpacer.height
+        + (rowCount > 0 ? rowCount * chipHeight + Math.max(0, rowCount - 1) * shortcutsGrid.rowSpacing : 0)
+        + bottomSpacer.height
+        + spacing * 2
 
-    // Top spacer for consistent spacing
-    Item { width: 1; height: Theme.spacingS }
+    // Keep a small breathing room without wasting vertical space.
+    Item {
+        id: topSpacer
+        width: 1
+        height: Theme.spacingXS
+    }
     property string selectedShortcutId: ""
     
     // Signals
@@ -20,7 +31,7 @@ Column {
     signal requestDelete(string id)
     
     visible: HomeAssistantService.shortcutsModel.count > 0 || isEditing
-    spacing: Theme.spacingS
+    spacing: Theme.spacingXS
     
     onIsEditingChanged: {
         if (!isEditing) selectedShortcutId = "";
@@ -28,12 +39,12 @@ Column {
     
     // Internal shortcut selection state handling
     // We need to support keyboard navigation which was previously in the parent
-    
+
     GridLayout {
         id: shortcutsGrid
         width: parent.width
         columnSpacing: Theme.spacingS
-        rowSpacing: Theme.spacingS
+        rowSpacing: Theme.spacingXS
 
         // Fixed columns: 1, 2, or 3 based on available width
         columns: {
@@ -137,5 +148,9 @@ Column {
     }
 
     // Spacer
-    Item { width: 1; height: Theme.spacingS }
+    Item {
+        id: bottomSpacer
+        width: 1
+        height: Theme.spacingXS
+    }
 }

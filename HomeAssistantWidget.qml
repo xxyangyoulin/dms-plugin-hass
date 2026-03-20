@@ -24,8 +24,14 @@ PluginComponent {
     property string iconSearchText: ""
     property bool keyboardNavigationActive: false
     property var entityListView: null
+    property var entityListRepeater: null
     property bool showEntityBrowser: false
     property string entitySearchText: ""
+    readonly property int compactPopoutWidth: 420
+    readonly property int compactContentWidth: compactPopoutWidth - Theme.spacingM * 2
+    readonly property int rightColumnWidth: compactContentWidth
+    readonly property int browserColumnWidth: 360
+    readonly property int expandedPopoutWidth: rightColumnWidth + browserColumnWidth + Theme.spacingS + Theme.spacingM * 2
 
     property bool isEditing: false // Global edit mode state
     property bool manualRefreshInProgress: false
@@ -451,7 +457,26 @@ PluginComponent {
             var entities = globalEntities.value || [];
             var index = entities.findIndex(function(e) { return e.entityId === selectedEntityId; });
             if (index >= 0) {
-                entityListView.positionViewAtIndex(index, ListView.Contain);
+                if (entityListView.positionViewAtIndex) {
+                    entityListView.positionViewAtIndex(index, ListView.Contain);
+                    return;
+                }
+
+                if (entityListRepeater && entityListRepeater.itemAt) {
+                    var item = entityListRepeater.itemAt(index);
+                    if (!item) return;
+
+                    var itemTop = item.y;
+                    var itemBottom = item.y + item.height;
+                    var viewportTop = entityListView.contentY;
+                    var viewportBottom = entityListView.contentY + entityListView.height;
+
+                    if (itemTop < viewportTop) {
+                        entityListView.contentY = itemTop;
+                    } else if (itemBottom > viewportBottom) {
+                        entityListView.contentY = itemBottom - entityListView.height;
+                    }
+                }
             }
         });
     }
@@ -537,7 +562,7 @@ PluginComponent {
     popoutContent: Component {
         FocusScope {
             id: popoutScope
-            implicitWidth: 420
+            implicitWidth: root.showEntityBrowser ? root.expandedPopoutWidth : root.compactPopoutWidth
             implicitHeight: 600
             focus: true
             
@@ -558,6 +583,8 @@ PluginComponent {
                 function onShouldBeVisibleChanged() {
                     if (parentPopout && !parentPopout.shouldBeVisible) {
                         root.collapseAllEntities();
+                        root.showEntityBrowser = false;
+                        root.entitySearchText = "";
                     }
                 }
             }
@@ -586,122 +613,149 @@ PluginComponent {
                 }
             }
 
-            // Main Content
             Column {
                 id: popoutColumn
-                spacing: 0
-                width: parent.width
-                
+                anchors.fill: parent
+                anchors.margins: Theme.spacingM
+                spacing: Theme.spacingS
+
                 Rectangle {
-                    id: headerBar
-                    width: parent.width
-                    height: 46
-                    color: "transparent"
+                    id: overviewPanel
+                    width: contentFrame.width
+                    height: overviewContent.implicitHeight + Theme.spacingM * 2
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    radius: Theme.cornerRadius * 1.2
+                    color: Theme.surfaceContainerHigh || Theme.surfaceContainer
+                    border.width: 1
+                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.16)
 
-                    Column {
-                        anchors.left: parent.left
-                        anchors.leftMargin: Theme.spacingM
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: 2
-
-                        Row {
-                            spacing: Theme.spacingS
-                            
-                            Rectangle {
-                                width: 8; height: 8; radius: 4
-                                anchors.verticalCenter: parent.verticalCenter
-                                color: {
-                                    if (globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline") return Theme.error;
-                                    if (globalConnectionStatus.value === "connecting" || globalConnectionStatus.value === "degraded") return Theme.warning;
-                                    if (!globalHaAvailable.value) return Theme.error;
-                                    if (globalLatency.value < 0) return Theme.surfaceVariantText;
-                                    if (globalLatency.value < 50) return "#4caf50"; // Green
-                                    if (globalLatency.value < 150) return "#ff9800"; // Orange
-                                    return Theme.error;
-                                }
-                                Behavior on color { ColorAnimation { duration: 300 } }
-                            }
-
-                            StyledText {
-                                text: {
-                                    if (globalConnectionStatus.value === "auth_error") return I18n.tr("Home Assistant authentication failed", "Home Assistant connection error");
-                                    if (globalConnectionStatus.value === "connecting") return I18n.tr("Connecting to Home Assistant", "Home Assistant status");
-                                    if (globalConnectionStatus.value === "degraded") return I18n.tr("Home Assistant connection degraded", "Home Assistant status");
-                                    if (!globalHaAvailable.value) return I18n.tr("Home Assistant unavailable", "Home Assistant connection error");
-                                    let base = I18n.tr("Monitoring", "Home Assistant status") + ` ${globalEntityCount.value} ` + I18n.tr("entities", "Home Assistant entity count");
-                                    if (globalLatency.value >= 0) {
-                                        return base + ` (${globalLatency.value}ms)`;
-                                    }
-                                    return base;
-                                }
-                                font.pixelSize: Theme.fontSizeMedium
-                                anchors.verticalCenter: parent.verticalCenter
-                                color: Theme.surfaceVariantText
-                            }
-                        }
-
-                        StyledText {
-                            text: root.pinnedEntities.length > 0 ? `${root.pinnedEntities.length} ` + I18n.tr("pinned to status bar", "Home Assistant pinned count") : I18n.tr("Click pin icon to pin entities to status bar", "Home Assistant pin hint")
-                            font.pixelSize: Theme.fontSizeSmall
-                            color: Theme.surfaceVariantText
-                            opacity: 0.7
-                            visible: globalEntityCount.value > 0
-                        }
+                    readonly property color statusColor: {
+                        if (globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline") return Theme.error;
+                        if (globalConnectionStatus.value === "connecting" || globalConnectionStatus.value === "degraded") return Theme.warning;
+                        if (!globalHaAvailable.value) return Theme.error;
+                        return Theme.primary;
                     }
 
-                    Row {
-                        anchors.right: parent.right
-                        anchors.rightMargin: Theme.spacingS
-                        anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.spacingXS
+                    readonly property string titleText: {
+                        if (globalConnectionStatus.value === "auth_error") return I18n.tr("Home Assistant authentication failed", "Home Assistant connection error");
+                        if (globalConnectionStatus.value === "connecting") return I18n.tr("Connecting to Home Assistant", "Home Assistant status");
+                        if (globalConnectionStatus.value === "degraded") return I18n.tr("Home Assistant connection degraded", "Home Assistant status");
+                        if (!globalHaAvailable.value) return I18n.tr("Home Assistant unavailable", "Home Assistant connection error");
+                        return I18n.tr("Home Assistant", "Home Assistant dashboard title");
+                    }
 
-                        // Edit Shortcuts Toggle
-                        Rectangle {
-                            width: 36; height: 36; radius: Theme.cornerRadius
-                            color: root.isEditing ? Theme.primaryContainer : "transparent"
-                            
-                            DankIcon {
-                                name: root.isEditing ? "check" : "edit"
-                                size: 18
-                                color: root.isEditing ? Theme.primary : Theme.surfaceText
-                                anchors.centerIn: parent
-                            }
-                            
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.isEditing = !root.isEditing
-                            }
+                    readonly property string subtitleText: {
+                        if (globalConnectionStatus.value === "auth_error") {
+                            return I18n.tr("Update the token in settings to restore entity updates.", "Home Assistant auth subtitle");
                         }
+                        if (globalConnectionStatus.value === "connecting") {
+                            return I18n.tr("Authenticating and loading your monitored entities.", "Home Assistant connecting subtitle");
+                        }
+                        if (globalConnectionStatus.value === "degraded") {
+                            return I18n.tr("The server is reachable, but syncs are taking longer than expected.", "Home Assistant degraded subtitle");
+                        }
+                        if (!globalHaAvailable.value) {
+                            return I18n.tr("Review your URL and access token if the dashboard stays offline.", "Home Assistant offline subtitle");
+                        }
+                        return "";
+                    }
 
-                        BrowseEntitiesButton {
-                            onClicked: {
-                                root.showEntityBrowser = !root.showEntityBrowser;
-                                if (!root.showEntityBrowser) {
-                                    root.entitySearchText = "";
+                    Column {
+                        id: overviewContent
+                        anchors.fill: parent
+                        anchors.margins: Theme.spacingM
+                        spacing: 0
+
+                        Row {
+                            width: parent.width
+                            height: Math.max(34, titleBlock.implicitHeight, actionButtons.implicitHeight)
+                            spacing: Theme.spacingM
+
+                            Rectangle {
+                                width: 34
+                                height: 34
+                                radius: 17
+                                anchors.verticalCenter: parent.verticalCenter
+                                color: Qt.rgba(overviewPanel.statusColor.r, overviewPanel.statusColor.g, overviewPanel.statusColor.b, 0.12)
+
+                                DankIcon {
+                                    anchors.centerIn: parent
+                                    name: globalConnectionStatus.value === "connecting" ? "sync"
+                                          : (globalConnectionStatus.value === "degraded" ? "warning"
+                                          : (globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline" ? "error" : "home"))
+                                    size: 18
+                                    color: overviewPanel.statusColor
                                 }
                             }
-                            isActive: root.showEntityBrowser
+
+                            Column {
+                                id: titleBlock
+                                width: parent.width - actionButtons.implicitWidth - 34 - Theme.spacingM * 2
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
+
+                                StyledText {
+                                    text: overviewPanel.titleText
+                                    font.pixelSize: Theme.fontSizeMedium
+                                    font.weight: Font.Medium
+                                    color: Theme.surfaceText
+                                    width: parent.width
+                                    elide: Text.ElideRight
+                                    wrapMode: Text.NoWrap
+                                }
+
+                                StyledText {
+                                    text: overviewPanel.subtitleText
+                                    visible: text.length > 0
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.surfaceVariantText
+                                    width: parent.width
+                                    elide: Text.ElideRight
+                                    wrapMode: Text.NoWrap
+                                }
+                            }
+
+                            Row {
+                                id: actionButtons
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: Theme.spacingXS
+
+                                PanelActionButton {
+                                    iconName: root.isEditing ? "check" : "edit"
+                                    active: root.isEditing
+                                    onClicked: root.isEditing = !root.isEditing
+                                }
+
+                                BrowseEntitiesButton {
+                                    isActive: root.showEntityBrowser
+                                    onClicked: {
+                                        root.showEntityBrowser = !root.showEntityBrowser;
+                                        if (!root.showEntityBrowser) {
+                                            root.entitySearchText = "";
+                                        }
+                                    }
+                                }
+
+                                RefreshButton {
+                                    spinning: root.manualRefreshInProgress
+                                    onClicked: root.refreshEntities()
+                                }
+                            }
                         }
 
-                        RefreshButton {
-                            spinning: root.manualRefreshInProgress
-                            onClicked: root.refreshEntities()
-                        }
                     }
                 }
 
                 Rectangle {
                     id: connectionBanner
-                    width: parent.width
-                    height: visible ? 34 : 0
-                    color: {
-                        if (globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline") {
-                            return Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.12);
-                        }
-                        return Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.12);
-                    }
+                    width: contentFrame.width
+                    height: visible ? 32 : 0
+                    anchors.horizontalCenter: parent.horizontalCenter
                     visible: ["connecting", "degraded", "offline", "auth_error"].indexOf(globalConnectionStatus.value) >= 0
+                    radius: Theme.cornerRadius
+                    color: globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline"
+                        ? Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.12)
+                        : Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.12)
 
                     Row {
                         anchors.fill: parent
@@ -713,17 +767,16 @@ PluginComponent {
                             name: globalConnectionStatus.value === "connecting" ? "sync"
                                   : (globalConnectionStatus.value === "degraded" ? "warning" : "error")
                             size: 16
-                            color: globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline"
-                                ? Theme.error : Theme.warning
+                            color: globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline" ? Theme.error : Theme.warning
                             anchors.verticalCenter: parent.verticalCenter
                         }
 
                         StyledText {
                             anchors.verticalCenter: parent.verticalCenter
                             width: parent.width - 24
-                            elide: Text.ElideRight
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceText
+                            elide: Text.ElideRight
                             text: {
                                 if (globalConnectionMessage.value) return globalConnectionMessage.value;
                                 if (globalConnectionStatus.value === "connecting") return I18n.tr("Connecting to Home Assistant", "Connection banner");
@@ -733,120 +786,162 @@ PluginComponent {
                             }
                         }
                     }
-
-                    Behavior on height { NumberAnimation { duration: 150 } }
                 }
 
-                // Entity Browser
-                EntityBrowser {
-                    id: entityBrowser
-                    width: parent.width
-                    isOpen: root.showEntityBrowser
-                    browseMode: root.browseMode
-                    searchText: root.entitySearchText
-                    deviceModel: root.entityDevices
-                    domainModel: root.entityDomains
-                    contentReady: popoutScope.contentReady
-                    monitoredEntityIds: {
-                        var list = globalEntities.value || [];
-                        return list.map(e => e.entityId);
-                    }
+                Item {
+                    id: contentFrame
+                    width: root.showEntityBrowser
+                        ? root.browserColumnWidth + Theme.spacingS + root.rightColumnWidth
+                        : root.compactContentWidth
+                    height: parent.height - overviewPanel.height - (connectionBanner.visible ? connectionBanner.height : 0) - Theme.spacingS - (connectionBanner.visible ? Theme.spacingS : 0)
+                    anchors.horizontalCenter: parent.horizontalCenter
 
-                    onRequestToggleMonitor: (entityId) => root.toggleMonitorEntity(entityId)
-                    onRequestBrowseModeChange: (mode) => root.browseMode = mode
-                    onRequestSearchTextChange: (text) => root.entitySearchText = text
-                }
+                    Row {
+                        id: contentRow
+                        anchors.fill: parent
+                        spacing: Theme.spacingS
 
-                // Monitored Entities List
-                DankListView {
-                    id: entityList
-                    width: parent.width
-                    height: {
-                        const headerHeight = headerBar.height + connectionBanner.height;
-                        const browserHeight = root.showEntityBrowser ? 400 : 0;
-                        const bottomPadding = Theme.spacingS;
-                        return root.popoutHeight - headerHeight - browserHeight - bottomPadding;
-                    }
-                    topMargin: 0
-                    bottomMargin: Theme.spacingM
-                    leftMargin: Theme.spacingM
-                    rightMargin: Theme.spacingM
-                    spacing: Theme.spacingS
-                    clip: true
-                    cacheBuffer: 150  // Pre-render nearby items
-                    model: popoutScope.contentReady ? monitoredListModel : null
-                    currentIndex: root.keyboardNavigationActive ? globalEntities.value.findIndex(e => e.entityId === root.selectedEntityId) : -1
+                        Item {
+                            width: root.showEntityBrowser ? root.browserColumnWidth : 0
+                            height: parent.height
+                            visible: root.showEntityBrowser
 
-                    header: ShortcutsGrid {
-                        width: entityList.width - entityList.leftMargin - entityList.rightMargin
-                        isEditing: root.isEditing
-                    }
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: Theme.cornerRadius * 1.2
+                                color: Theme.surfaceContainerLow || Theme.surfaceContainer
+                                border.width: 1
+                                border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.14)
 
-                    // Animations for sorting/adding/removing
-                    move: Transition {
-                        NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
-                    }
-                    moveDisplaced: Transition {
-                        NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
-                    }
-                    add: Transition {
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
-                        NumberAnimation { property: "scale"; from: 0.9; to: 1; duration: 200 }
-                    }
-                    displaced: Transition {
-                        NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
-                    }
+                                Column {
+                                    anchors.fill: parent
+                                    anchors.margins: Theme.spacingM
+                                    spacing: Theme.spacingS
 
-                    Behavior on height {
-                        enabled: false
-                    }
+                                    StyledText {
+                                        id: browserSectionTitle
+                                        text: I18n.tr("Entity browser", "Home Assistant browser module title")
+                                        font.pixelSize: Theme.fontSizeSmall
+                                        font.weight: Font.Medium
+                                        color: Theme.surfaceVariantText
+                                    }
 
-                    Component.onCompleted: {
-                        root.entityListView = entityList;
-                    }
+                                    EntityBrowser {
+                                        id: entityBrowser
+                                        width: parent.width
+                                        height: parent.height - browserSectionTitle.height - Theme.spacingS
+                                        isOpen: true
+                                        browseMode: root.browseMode
+                                        searchText: root.entitySearchText
+                                        deviceModel: root.entityDevices
+                                        domainModel: root.entityDomains
+                                        contentReady: popoutScope.contentReady
+                                        monitoredEntityIds: {
+                                            var list = globalEntities.value || [];
+                                            return list.map(e => e.entityId);
+                                        }
 
-                    delegate: Item {
-                        width: entityList.width - entityList.leftMargin - entityList.rightMargin
-                        height: entityCardDelegate.height
-
-                        EntityCard {
-                            id: entityCardDelegate
-                            width: parent.width
-                            entityData: monitoredListModel.get(index)
-                            isExpanded: root.expandedEntities[entityId] || false
-                            isCurrentItem: root.keyboardNavigationActive && root.selectedEntityId === entityId
-                            isPinned: root.isPinned(entityId)
-                            detailsExpanded: root.showEntityDetails[entityId] || false
-                            showAttributes: root.showAttributes
-                            customIcons: root.customIcons
-                            isEditing: root.isEditing
-
-                            onToggleExpand: root.toggleEntity(entityId)
-                            onTogglePin: root.togglePinEntity(entityId)
-                            onToggleDetails: root.toggleEntityDetails(entityId)
-                            onRemoveEntity: {
-                                HomeAssistantService.removeEntityFromMonitor(entityId);
-                                ToastService.showInfo(I18n.tr("Entity removed from monitoring", "Entity monitoring notification"));
+                                        onRequestToggleMonitor: (entityId) => root.toggleMonitorEntity(entityId)
+                                        onRequestBrowseModeChange: (mode) => root.browseMode = mode
+                                        onRequestSearchTextChange: (text) => root.entitySearchText = text
+                                    }
+                                }
                             }
-                            onOpenIconPicker: root.openIconPicker(entityId)
+                        }
+
+                        Column {
+                            id: rightColumn
+                            width: root.rightColumnWidth
+                            height: parent.height
+                            spacing: Theme.spacingS
+
+                            EmptyState {
+                                width: parent.width
+                                height: Math.max(260, rightColumn.height)
+                                visible: globalEntities.value.length === 0
+                                haAvailable: globalHaAvailable.value
+                                connectionStatus: globalConnectionStatus.value
+                                connectionMessage: globalConnectionMessage.value
+                                entityCount: globalEntityCount.value
+                            }
+
+                            Flickable {
+                                id: entityList
+                                width: parent.width
+                                height: rightColumn.height
+                                visible: globalEntities.value.length > 0
+                                clip: true
+                                contentWidth: width
+                                contentHeight: entityListContent.height
+                                boundsBehavior: Flickable.StopAtBounds
+
+                                Component.onCompleted: {
+                                    root.entityListView = entityList;
+                                    root.entityListRepeater = entityRepeater;
+                                }
+
+                                onVisibleChanged: {
+                                    if (visible) {
+                                        root.entityListView = entityList;
+                                        root.entityListRepeater = entityRepeater;
+                                    }
+                                }
+
+                                Column {
+                                    id: entityListContent
+                                    width: entityList.width
+                                    spacing: Theme.spacingS
+
+                                    ShortcutsGrid {
+                                        id: shortcutsHeader
+                                        width: parent.width
+                                        visible: HomeAssistantService.shortcutsModel.count > 0 || root.isEditing
+                                        isEditing: root.isEditing
+                                    }
+
+                                    Repeater {
+                                        id: entityRepeater
+                                        model: popoutScope.contentReady ? monitoredListModel : null
+
+                                        delegate: Item {
+                                            required property int index
+                                            required property string entityId
+
+                                            width: entityList.width
+                                            height: entityCardDelegate.height
+
+                                            EntityCard {
+                                                id: entityCardDelegate
+                                                width: parent.width
+                                                entityData: monitoredListModel.get(index)
+                                                isExpanded: root.expandedEntities[entityId] || false
+                                                isCurrentItem: root.keyboardNavigationActive && root.selectedEntityId === entityId
+                                                isPinned: root.isPinned(entityId)
+                                                detailsExpanded: root.showEntityDetails[entityId] || false
+                                                showAttributes: root.showAttributes
+                                                customIcons: root.customIcons
+                                                isEditing: root.isEditing
+
+                                                onToggleExpand: root.toggleEntity(entityId)
+                                                onTogglePin: root.togglePinEntity(entityId)
+                                                onToggleDetails: root.toggleEntityDetails(entityId)
+                                                onRemoveEntity: {
+                                                    HomeAssistantService.removeEntityFromMonitor(entityId);
+                                                    ToastService.showInfo(I18n.tr("Entity removed from monitoring", "Entity monitoring notification"));
+                                                }
+                                                onOpenIconPicker: root.openIconPicker(entityId)
+                                            }
+                                        }
+                                    }
+
+                                    Item {
+                                        width: 1
+                                        height: Theme.spacingS
+                                    }
+                                }
+                            }
                         }
                     }
-                }
-
-                // Empty state
-                EmptyState {
-                    width: parent.width
-                    height: {
-                        const headerHeight = headerBar.height + connectionBanner.height;
-                        const browserHeight = root.showEntityBrowser ? 400 : 0;
-                        const bottomPadding = Theme.spacingS;
-                        return root.popoutHeight - headerHeight - browserHeight - bottomPadding;
-                    }
-                    visible: globalEntities.value.length === 0 && !root.showEntityBrowser
-                    haAvailable: globalHaAvailable.value
-                    connectionStatus: globalConnectionStatus.value
-                    connectionMessage: globalConnectionMessage.value
-                    entityCount: globalEntityCount.value
                 }
             }
 
@@ -912,6 +1007,6 @@ PluginComponent {
         }
     }
 
-    popoutWidth: 420
+    popoutWidth: root.showEntityBrowser ? root.expandedPopoutWidth : root.compactPopoutWidth
     popoutHeight: 600
 }

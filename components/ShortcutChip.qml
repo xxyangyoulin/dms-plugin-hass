@@ -24,15 +24,19 @@ StyledRect {
     visible: shortcutData !== undefined && shortcutData !== null
 
     // Use implicit size to suggest size to layout
-    implicitWidth: isEditing ? Math.max(140, row.implicitWidth + Theme.spacingS * 2) : Math.max(100, row.implicitWidth + Theme.spacingS * 2)
-    implicitHeight: 42
-    height: 42
-    radius: 21
+    implicitWidth: isEditing ? Math.max(148, row.implicitWidth + Theme.spacingM * 2) : Math.max(108, row.implicitWidth + Theme.spacingM * 2)
+    implicitHeight: 44
+    height: 44
+    radius: 22
 
     // Visual feedback for edit mode
-    color: isSelected ? (Theme.primary || "transparent") : (isEditing ? Theme.surfaceContainerHigh : (mouseArea.containsMouse ? Theme.surfaceContainerHigh : Theme.surfaceContainer))
-    border.width: isSelected ? 2 : (isEditing ? 1 : (mouseArea.containsMouse ? 1 : 0))
-    border.color: isSelected ? (Theme.primary || "transparent") : (isEditing ? (Theme.primary || "transparent") : (mouseArea.containsMouse ? (Theme.primary || "transparent") : "transparent"))
+    color: isSelected
+        ? Theme.primaryContainer
+        : (mouseArea.containsMouse ? (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh) : (Theme.surfaceContainerLow || Theme.surfaceContainer))
+    border.width: isSelected ? 2 : 1
+    border.color: isSelected
+        ? Theme.primary
+        : (isEditing ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2) : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18))
 
     Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
     Behavior on color { ColorAnimation { duration: 150 } }
@@ -55,7 +59,7 @@ StyledRect {
         DankIcon {
             name: parent.visible ? HassConstants.getIconForDomain(shortcutData.domain) : ""
             size: 16
-            color: Theme.primary || "transparent"
+            color: isSelected ? Theme.primary : Theme.surfaceVariantText
             anchors.verticalCenter: parent.verticalCenter
         }
         
@@ -95,7 +99,7 @@ StyledRect {
     // Edit Controls Overlay
     Row {
         anchors.right: parent.right
-        anchors.rightMargin: 4
+        anchors.rightMargin: 6
         anchors.verticalCenter: parent.verticalCenter
         spacing: 2
         visible: isEditing

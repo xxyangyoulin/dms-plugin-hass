@@ -23,6 +23,14 @@ StyledRect {
     readonly property bool hasControls: _hasControls()
     readonly property bool hasExpandableContent: _computeHasExpandableContent()
     readonly property color hoverTintColor: Theme.primary || Theme.surfaceText
+    readonly property string effectiveState: _getEffectiveState()
+    readonly property bool availabilityIssue: effectiveState === "unavailable" || effectiveState === "unknown"
+    readonly property bool activeState: Components.HassConstants.isActiveState(entityData && entityData.domain ? entityData.domain : "", effectiveState)
+    readonly property color stateTone: {
+        if (actionError) return Theme.error;
+        if (availabilityIssue) return Theme.warning;
+        return Components.HassConstants.getStateColor(entityData && entityData.domain ? entityData.domain : "", effectiveState, Theme);
+    }
     property var entityActionState: ({ status: "idle", action: "", message: "", updatedAt: 0 })
     readonly property bool actionPending: entityActionState.status === "pending"
     readonly property bool actionError: entityActionState.status === "error"
@@ -113,9 +121,13 @@ StyledRect {
 
     width: parent ? parent.width : 300
     radius: Theme.cornerRadius * 1.5
-    color: isCurrentItem ? (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh) : Theme.surfaceContainer
-    border.width: isCurrentItem ? 2 : 0
-    border.color: Theme.primary
+    color: isCurrentItem ? (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh) : (Theme.surfaceContainerLow || Theme.surfaceContainer)
+    border.width: isCurrentItem ? 2 : 1
+    border.color: isCurrentItem
+        ? Theme.primary
+        : (entityMouse.containsMouse
+            ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2)
+            : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.22))
 
     onEntityDataChanged: {
         _updateRelatedEntities();
@@ -191,7 +203,7 @@ StyledRect {
         height: entityCard.baseHeight
         radius: parent.radius
         color: entityCard.hoverTintColor
-        opacity: entityMouse.containsMouse ? 0.06 : 0
+        opacity: entityMouse.containsMouse ? 0.08 : 0
         z: 2
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
     }
@@ -296,46 +308,59 @@ StyledRect {
             }
         }
 
-        Row {
+        Flow {
             width: parent.width
             spacing: 4
 
-            StyledText {
-                text: {
-                    const stateText = Components.HassConstants.formatStateValue(entityCard._getEffectiveState(), entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "");
-                    if (entityCard.actionError) return stateText + " • " + I18n.tr("Failed", "Entity action failed");
-                    return stateText;
-                }
-                font.pixelSize: Theme.fontSizeSmall
-                font.weight: Font.DemiBold
-                color: {
-                    if (entityCard.actionError) return Theme.error;
-                    var state = entityCard._getEffectiveState();
-                    return (state === "unavailable" || state === "unknown") ? Theme.warning : Theme.primary;
-                }
-                width: entityCard.actionPending ? (parent.width - dotsRow.width - parent.spacing) : parent.width
-                wrapMode: Text.Wrap
-                maximumLineCount: 3
-                elide: Text.ElideRight
-            }
+            Rectangle {
+                radius: 10
+                height: 22
+                color: Qt.rgba(entityCard.stateTone.r, entityCard.stateTone.g, entityCard.stateTone.b, entityCard.actionError ? 0.18 : 0.13)
+                border.width: 1
+                border.color: Qt.rgba(entityCard.stateTone.r, entityCard.stateTone.g, entityCard.stateTone.b, 0.24)
+                width: Math.min(parent.width, pillRow.implicitWidth + Theme.spacingS * 2)
 
-            Row {
-                id: dotsRow
-                visible: entityCard.actionPending
-                spacing: 1
-
-                Repeater {
-                    model: 3
+                Row {
+                    id: pillRow
+                    anchors.left: parent.left
+                    anchors.leftMargin: Theme.spacingS
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 3
 
                     StyledText {
-                        text: "•"
-                        font.pixelSize: Theme.fontSizeSmall
-                        font.weight: Font.Bold
-                        color: Theme.primary
-                        opacity: index <= entityCard.pendingDotsPhase ? 1 : 0.3
+                        text: {
+                            const stateText = Components.HassConstants.formatStateValue(entityCard.effectiveState, entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "");
+                            if (entityCard.actionError) return stateText + " • " + I18n.tr("Failed", "Entity action failed");
+                            return stateText;
+                        }
+                        font.pixelSize: Theme.fontSizeSmall - 1
+                        font.weight: Font.DemiBold
+                        color: entityCard.stateTone
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                        width: Math.min(entityTextColumn.width - Theme.spacingM * 2, implicitWidth)
+                    }
+
+                    Row {
+                        id: dotsRow
+                        visible: entityCard.actionPending
+                        spacing: 1
+
+                        Repeater {
+                            model: 3
+
+                            StyledText {
+                                text: "•"
+                                font.pixelSize: Theme.fontSizeSmall
+                                font.weight: Font.Bold
+                                color: entityCard.stateTone
+                                opacity: index <= entityCard.pendingDotsPhase ? 1 : 0.3
+                            }
+                        }
                     }
                 }
             }
+
         }
 
         StyledText {

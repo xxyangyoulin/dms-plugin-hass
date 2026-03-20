@@ -1622,13 +1622,12 @@ Singleton {
             for (var entityId in pending) {
                 var entry = pending[entityId];
                 if (!entry.confirmed && (now - entry.timestamp >= Components.HassConstants.confirmationDelay)) {
-                    // 1 second passed, resolve this confirmation
+                    // Confirmation window elapsed. Keep the optimistic state until
+                    // a real HA update confirms or overrides it, otherwise the UI
+                    // briefly snaps back to the stale actual state.
                     entry.confirmed = true;
                     changed = true;
                     resolvedEntities.push(entityId);
-
-                    // Clear the optimistic state
-                    _clearOptimisticState(entityId, "state");
                 }
             }
 
