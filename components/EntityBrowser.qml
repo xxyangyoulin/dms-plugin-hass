@@ -244,53 +244,51 @@ Rectangle {
                         onClicked: root.toggleGroupExpanded(modelData.name)
                     }
 
-                    Row {
+                    Item {
                         anchors.left: parent.left
                         anchors.leftMargin: Theme.spacingM
                         anchors.right: parent.right
                         anchors.rightMargin: Theme.spacingXS
                         anchors.verticalCenter: parent.verticalCenter
-                        spacing: Theme.spacingS
+                        height: 24
 
-                        DankIcon {
-                            name: groupColumn.isExpanded ? "expand_less" : "expand_more"
-                            size: 16
-                            color: Theme.primary
+                        Row {
+                            id: groupLeadingRow
+                            anchors.left: parent.left
                             anchors.verticalCenter: parent.verticalCenter
-                        }
-
-                        Rectangle {
-                            width: 24
-                            height: 24
-                            radius: 12
-                            color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
-                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.spacingS
 
                             DankIcon {
-                                anchors.centerIn: parent
-                                name: root.browseMode === "device" ? "devices" : "category"
-                                size: 14
+                                name: groupColumn.isExpanded ? "expand_less" : "expand_more"
+                                size: 16
                                 color: Theme.primary
+                                anchors.verticalCenter: parent.verticalCenter
                             }
-                        }
 
-                        StyledText {
-                            text: root.browseMode === "device" ? modelData.name : modelData.name.toUpperCase()
-                            font.pixelSize: Theme.fontSizeSmall + 1
-                            font.weight: Font.DemiBold
-                            color: Theme.surfaceText
-                            width: Math.max(80, parent.width - countBadge.width - 80)
-                            elide: Text.ElideRight
-                            anchors.verticalCenter: parent.verticalCenter
+                            Rectangle {
+                                width: 24
+                                height: 24
+                                radius: 12
+                                color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                DankIcon {
+                                    anchors.centerIn: parent
+                                    name: root.browseMode === "device" ? "devices" : "category"
+                                    size: 14
+                                    color: Theme.primary
+                                }
+                            }
                         }
 
                         Rectangle {
                             id: countBadge
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
                             height: 22
                             radius: 11
                             width: countLabel.implicitWidth + Theme.spacingS * 2
                             color: Qt.rgba(Theme.surfaceVariantText.r, Theme.surfaceVariantText.g, Theme.surfaceVariantText.b, 0.08)
-                            anchors.verticalCenter: parent.verticalCenter
 
                             StyledText {
                                 id: countLabel
@@ -300,6 +298,19 @@ Rectangle {
                                 font.weight: Font.Medium
                                 color: Theme.surfaceVariantText
                             }
+                        }
+
+                        StyledText {
+                            anchors.left: groupLeadingRow.right
+                            anchors.leftMargin: Theme.spacingS
+                            anchors.right: countBadge.left
+                            anchors.rightMargin: Theme.spacingS
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.browseMode === "device" ? modelData.name : modelData.name.toUpperCase()
+                            font.pixelSize: Theme.fontSizeSmall + 1
+                            font.weight: Font.DemiBold
+                            color: Theme.surfaceText
+                            elide: Text.ElideRight
                         }
                     }
                 }

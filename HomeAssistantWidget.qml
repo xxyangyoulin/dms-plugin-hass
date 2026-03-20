@@ -24,7 +24,6 @@ PluginComponent {
     property string iconSearchText: ""
     property bool keyboardNavigationActive: false
     property var entityListView: null
-    property var entityListRepeater: null
     property bool showEntityBrowser: false
     property string entitySearchText: ""
     readonly property int compactPopoutWidth: 420
@@ -457,26 +456,9 @@ PluginComponent {
             var entities = globalEntities.value || [];
             var index = entities.findIndex(function(e) { return e.entityId === selectedEntityId; });
             if (index >= 0) {
-                if (entityListView.positionViewAtIndex) {
-                    entityListView.positionViewAtIndex(index, ListView.Contain);
-                    return;
-                }
-
-                if (entityListRepeater && entityListRepeater.itemAt) {
-                    var item = entityListRepeater.itemAt(index);
-                    if (!item) return;
-
-                    var itemTop = item.y;
-                    var itemBottom = item.y + item.height;
-                    var viewportTop = entityListView.contentY;
-                    var viewportBottom = entityListView.contentY + entityListView.height;
-
-                    if (itemTop < viewportTop) {
-                        entityListView.contentY = itemTop;
-                    } else if (itemBottom > viewportBottom) {
-                        entityListView.contentY = itemBottom - entityListView.height;
-                    }
-                }
+                const hasShortcuts = HomeAssistantService.shortcutsModel.count > 0 || root.isEditing;
+                const listIndex = hasShortcuts ? index + 1 : index;
+                entityListView.positionViewAtIndex(listIndex, ListView.Contain);
             }
         });
     }
@@ -865,79 +847,98 @@ PluginComponent {
                                 entityCount: globalEntityCount.value
                             }
 
-                            Flickable {
+                            ListView {
                                 id: entityList
                                 width: parent.width
                                 height: rightColumn.height
                                 visible: globalEntities.value.length > 0
+                                spacing: Theme.spacingS
                                 clip: true
-                                contentWidth: width
-                                contentHeight: entityListContent.height
+                                cacheBuffer: 180
                                 boundsBehavior: Flickable.StopAtBounds
+                                model: {
+                                    const entityCount = popoutScope.contentReady ? monitoredListModel.count : 0;
+                                    const hasShortcuts = HomeAssistantService.shortcutsModel.count > 0 || root.isEditing;
+                                    return entityCount + (hasShortcuts ? 1 : 0);
+                                }
+                                currentIndex: {
+                                    const selectedIndex = globalEntities.value.findIndex(e => e.entityId === root.selectedEntityId);
+                                    if (!root.keyboardNavigationActive || selectedIndex < 0) return -1;
+                                    const hasShortcuts = HomeAssistantService.shortcutsModel.count > 0 || root.isEditing;
+                                    return hasShortcuts ? selectedIndex + 1 : selectedIndex;
+                                }
+
+                                move: Transition {
+                                    NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
+                                }
+                                moveDisplaced: Transition {
+                                    NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
+                                }
+                                add: Transition {
+                                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+                                    NumberAnimation { property: "scale"; from: 0.9; to: 1; duration: 200 }
+                                }
+                                displaced: Transition {
+                                    NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
+                                }
 
                                 Component.onCompleted: {
                                     root.entityListView = entityList;
-                                    root.entityListRepeater = entityRepeater;
                                 }
 
                                 onVisibleChanged: {
                                     if (visible) {
                                         root.entityListView = entityList;
-                                        root.entityListRepeater = entityRepeater;
                                     }
                                 }
 
-                                Column {
-                                    id: entityListContent
+                                delegate: Item {
+                                    required property int index
+
+                                    readonly property bool hasShortcuts: HomeAssistantService.shortcutsModel.count > 0 || root.isEditing
+                                    readonly property bool isShortcutRow: hasShortcuts && index === 0
+                                    readonly property int entityIndex: hasShortcuts ? index - 1 : index
+                                    readonly property var rowEntityData: !isShortcutRow && entityIndex >= 0 && entityIndex < monitoredListModel.count
+                                        ? monitoredListModel.get(entityIndex)
+                                        : null
+
                                     width: entityList.width
-                                    spacing: Theme.spacingS
+                                    height: isShortcutRow ? shortcutsRow.contentHeight : entityCardDelegate.height
 
                                     ShortcutsGrid {
-                                        id: shortcutsHeader
+                                        id: shortcutsRow
                                         width: parent.width
-                                        visible: HomeAssistantService.shortcutsModel.count > 0 || root.isEditing
+                                        visible: parent.isShortcutRow
                                         isEditing: root.isEditing
                                     }
 
-                                    Repeater {
-                                        id: entityRepeater
-                                        model: popoutScope.contentReady ? monitoredListModel : null
+                                    EntityCard {
+                                        id: entityCardDelegate
+                                        visible: !parent.isShortcutRow && !!parent.rowEntityData
+                                        width: parent.width
+                                        entityData: parent.rowEntityData
+                                        isExpanded: rowEntityData ? (root.expandedEntities[rowEntityData.entityId] || false) : false
+                                        isCurrentItem: rowEntityData ? (root.keyboardNavigationActive && root.selectedEntityId === rowEntityData.entityId) : false
+                                        isPinned: rowEntityData ? root.isPinned(rowEntityData.entityId) : false
+                                        detailsExpanded: rowEntityData ? (root.showEntityDetails[rowEntityData.entityId] || false) : false
+                                        showAttributes: root.showAttributes
+                                        customIcons: root.customIcons
+                                        isEditing: root.isEditing
 
-                                        delegate: Item {
-                                            required property int index
-                                            required property string entityId
-
-                                            width: entityList.width
-                                            height: entityCardDelegate.height
-
-                                            EntityCard {
-                                                id: entityCardDelegate
-                                                width: parent.width
-                                                entityData: monitoredListModel.get(index)
-                                                isExpanded: root.expandedEntities[entityId] || false
-                                                isCurrentItem: root.keyboardNavigationActive && root.selectedEntityId === entityId
-                                                isPinned: root.isPinned(entityId)
-                                                detailsExpanded: root.showEntityDetails[entityId] || false
-                                                showAttributes: root.showAttributes
-                                                customIcons: root.customIcons
-                                                isEditing: root.isEditing
-
-                                                onToggleExpand: root.toggleEntity(entityId)
-                                                onTogglePin: root.togglePinEntity(entityId)
-                                                onToggleDetails: root.toggleEntityDetails(entityId)
-                                                onRemoveEntity: {
-                                                    HomeAssistantService.removeEntityFromMonitor(entityId);
-                                                    ToastService.showInfo(I18n.tr("Entity removed from monitoring", "Entity monitoring notification"));
-                                                }
-                                                onOpenIconPicker: root.openIconPicker(entityId)
-                                            }
+                                        onToggleExpand: if (rowEntityData) root.toggleEntity(rowEntityData.entityId)
+                                        onTogglePin: if (rowEntityData) root.togglePinEntity(rowEntityData.entityId)
+                                        onToggleDetails: if (rowEntityData) root.toggleEntityDetails(rowEntityData.entityId)
+                                        onRemoveEntity: if (rowEntityData) {
+                                            HomeAssistantService.removeEntityFromMonitor(rowEntityData.entityId);
+                                            ToastService.showInfo(I18n.tr("Entity removed from monitoring", "Entity monitoring notification"));
                                         }
+                                        onOpenIconPicker: if (rowEntityData) root.openIconPicker(rowEntityData.entityId)
                                     }
+                                }
 
-                                    Item {
-                                        width: 1
-                                        height: Theme.spacingS
-                                    }
+                                footer: Item {
+                                    width: 1
+                                    height: Theme.spacingS
                                 }
                             }
                         }

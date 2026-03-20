@@ -12,6 +12,7 @@ StyledRect {
     property bool isEditing: false
     property bool isSelected: false
     property bool isRenaming: false
+    readonly property color hoverTintColor: Theme.primary || Theme.surfaceText
 
     signal requestDelete()
     signal requestRename(string newName)
@@ -24,19 +25,21 @@ StyledRect {
     visible: shortcutData !== undefined && shortcutData !== null
 
     // Use implicit size to suggest size to layout
-    implicitWidth: isEditing ? Math.max(148, row.implicitWidth + Theme.spacingM * 2) : Math.max(108, row.implicitWidth + Theme.spacingM * 2)
-    implicitHeight: 44
-    height: 44
-    radius: 22
+    implicitWidth: isEditing ? Math.max(144, row.implicitWidth + Theme.spacingM * 2) : Math.max(104, row.implicitWidth + Theme.spacingM * 2)
+    implicitHeight: 40
+    height: 40
+    radius: 20
 
     // Visual feedback for edit mode
     color: isSelected
         ? Theme.primaryContainer
-        : (mouseArea.containsMouse ? (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh) : (Theme.surfaceContainerLow || Theme.surfaceContainer))
+        : (Theme.surfaceContainerLow || Theme.surfaceContainer)
     border.width: isSelected ? 2 : 1
     border.color: isSelected
         ? Theme.primary
-        : (isEditing ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2) : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18))
+        : (mouseArea.containsMouse
+            ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2)
+            : (isEditing ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2) : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18)))
 
     Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
     Behavior on color { ColorAnimation { duration: 150 } }
@@ -55,10 +58,11 @@ StyledRect {
         anchors.centerIn: parent
         spacing: Theme.spacingS
         visible: parent.visible
+        z: 2
         
         DankIcon {
             name: parent.visible ? HassConstants.getIconForDomain(shortcutData.domain) : ""
-            size: 16
+            size: 15
             color: isSelected ? Theme.primary : Theme.surfaceVariantText
             anchors.verticalCenter: parent.verticalCenter
         }
@@ -96,6 +100,15 @@ StyledRect {
         }
     }
 
+    Rectangle {
+        anchors.fill: parent
+        radius: parent.radius
+        color: root.hoverTintColor
+        opacity: mouseArea.containsMouse ? 0.08 : 0
+        z: 1
+        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+    }
+
     // Edit Controls Overlay
     Row {
         anchors.right: parent.right
@@ -106,27 +119,27 @@ StyledRect {
         z: 10
 
         EditActionButton {
-            width: 20; height: 20
+            width: 18; height: 18
             iconName: "chevron_left"
-            iconSize: 14
+            iconSize: 12
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
             onClicked: root.requestMove(-1)
         }
 
         EditActionButton {
-            width: 20; height: 20
+            width: 18; height: 18
             iconName: "chevron_right"
-            iconSize: 14
+            iconSize: 12
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
             onClicked: root.requestMove(1)
         }
 
         EditActionButton {
-            width: 20; height: 20
+            width: 18; height: 18
             iconName: "close"
-            iconSize: 12
+            iconSize: 11
             iconColor: Theme.primaryText
             backgroundColor: Theme.error || "transparent"
             onClicked: root.requestDelete()
