@@ -28,6 +28,7 @@ PluginComponent {
     property string entitySearchText: ""
 
     property bool isEditing: false // Global edit mode state
+    property bool manualRefreshInProgress: false
 
     Ref {
         service: HomeAssistantService
@@ -205,6 +206,13 @@ PluginComponent {
         function onPendingConfirmationResolved(entityId) {
             // 1 second passed, sync to ensure UI shows actual state
             syncMonitoredList();
+        }
+    }
+
+    Connections {
+        target: HomeAssistantService
+        function onRefreshCompleted(success) {
+            root.manualRefreshInProgress = false;
         }
     }
 
@@ -437,6 +445,8 @@ PluginComponent {
     }
 
     function refreshEntities() {
+        if (root.manualRefreshInProgress) return;
+        root.manualRefreshInProgress = true;
         // Increment refresh counter to reset entity card expand caches
         var currentCounter = pluginData.haRefreshCounter || 0;
         if (pluginService) {
@@ -653,6 +663,7 @@ PluginComponent {
                         }
 
                         RefreshButton {
+                            spinning: root.manualRefreshInProgress
                             onClicked: root.refreshEntities()
                         }
                     }
