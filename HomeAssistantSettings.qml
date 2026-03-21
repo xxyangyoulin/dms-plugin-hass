@@ -15,7 +15,7 @@ PluginSettings {
     readonly property bool hasUrl: (pluginData.hassUrl || "").trim().length > 0
     readonly property bool hasTokenFile: (pluginData.hassTokenPath || "").trim().length > 0
     readonly property bool hasDirectToken: tokenValue.trim().length > 0
-    readonly property bool isConfigured: hasUrl && (hasTokenFile || hasDirectToken)
+    readonly property bool isConfigured: HomeAssistantService.isConfigured
     readonly property string resolvedStatus: {
         if (!isConfigured)
             return "not_configured";

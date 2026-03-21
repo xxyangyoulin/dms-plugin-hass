@@ -29,19 +29,11 @@ Item {
         Column {
             anchors.fill: parent
             anchors.margins: Theme.spacingM
-            spacing: Theme.spacingS
-
-            StyledText {
-                id: browserSectionTitle
-                text: I18n.tr("Entity browser", "Home Assistant browser module title")
-                font.pixelSize: Theme.fontSizeSmall
-                font.weight: Font.Medium
-                color: Theme.surfaceVariantText
-            }
+            spacing: 0
 
             EntityBrowser {
                 width: parent.width
-                height: parent.height - browserSectionTitle.height - Theme.spacingS
+                height: parent.height
                 isOpen: true
                 browseMode: root.browseMode
                 searchText: root.searchText

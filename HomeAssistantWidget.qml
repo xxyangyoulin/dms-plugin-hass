@@ -278,6 +278,15 @@ PluginComponent {
         }
     }
 
+    function toggleEditingMode() {
+        root.isEditing = !root.isEditing;
+        root.showEntityBrowser = root.isEditing;
+        if (!root.showEntityBrowser) {
+            root.closeIconPicker();
+            root.entitySearchText = "";
+        }
+    }
+
     function togglePinEntity(entityId) {
         var pinned = Array.from(pinnedEntities);
         var index = pinned.indexOf(entityId);
@@ -594,11 +603,9 @@ PluginComponent {
                     connectionStatus: globalConnectionStatus.value
                     connectionMessage: globalConnectionMessage.value
                     isEditing: root.isEditing
-                    showEntityBrowser: root.showEntityBrowser
                     manualRefreshInProgress: root.manualRefreshInProgress
 
-                    onRequestToggleEditing: root.isEditing = !root.isEditing
-                    onRequestToggleBrowser: root.toggleEntityBrowser()
+                    onRequestToggleEditing: root.toggleEditingMode()
                     onRequestRefresh: root.refreshEntities()
                 }
 

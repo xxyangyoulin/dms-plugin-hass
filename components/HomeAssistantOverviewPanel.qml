@@ -9,11 +9,9 @@ Rectangle {
     required property string connectionStatus
     required property string connectionMessage
     required property bool isEditing
-    required property bool showEntityBrowser
     required property bool manualRefreshInProgress
 
     signal requestToggleEditing()
-    signal requestToggleBrowser()
     signal requestRefresh()
 
     readonly property color statusColor: {
@@ -132,11 +130,6 @@ Rectangle {
                     iconName: root.isEditing ? "check" : "edit"
                     active: root.isEditing
                     onClicked: root.requestToggleEditing()
-                }
-
-                BrowseEntitiesButton {
-                    isActive: root.showEntityBrowser
-                    onClicked: root.requestToggleBrowser()
                 }
 
                 RefreshButton {

@@ -15,7 +15,7 @@ Rectangle {
     property var deviceModel: []
     property var domainModel: []
     property bool contentReady: false
-    readonly property int browserHeaderHeight: 84
+    readonly property int browserHeaderHeight: 44
 
     // Signals to communicate with parent
     signal requestToggleMonitor(string entityId)
@@ -56,92 +56,19 @@ Rectangle {
         }
     }
 
-    Column {
-        width: parent.width
-        height: parent.height
-        spacing: Theme.spacingS
-
         Column {
-            width: parent.width - Theme.spacingM * 2
-            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width
+            height: parent.height
+            spacing: Theme.spacingS
+
+        Row {
+            width: parent.width
             height: root.browserHeaderHeight
             spacing: Theme.spacingXS
 
-            Row {
-                width: parent.width
-                height: 36
-                spacing: Theme.spacingXS
-
-                Rectangle {
-                    width: (parent.width - Theme.spacingXS) / 2
-                    height: parent.height
-                    radius: Theme.cornerRadius
-                    color: root.browseMode === "device" ? Theme.primaryContainer : (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh)
-                    border.width: root.browseMode === "device" ? 0 : 1
-                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18)
-
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: Theme.spacingXS
-
-                        DankIcon {
-                            name: "devices"
-                            size: 16
-                            color: root.browseMode === "device" ? Theme.primary : Theme.surfaceText
-                        }
-
-                        StyledText {
-                            text: I18n.tr("Devices", "Browse mode label")
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: Font.Medium
-                            color: root.browseMode === "device" ? Theme.primary : Theme.surfaceText
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.requestBrowseModeChange("device")
-                    }
-                }
-
-                Rectangle {
-                    width: (parent.width - Theme.spacingXS) / 2
-                    height: parent.height
-                    radius: Theme.cornerRadius
-                    color: root.browseMode === "domain" ? Theme.primaryContainer : (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh)
-                    border.width: root.browseMode === "domain" ? 0 : 1
-                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18)
-
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: Theme.spacingXS
-
-                        DankIcon {
-                            name: "category"
-                            size: 16
-                            color: root.browseMode === "domain" ? Theme.primary : Theme.surfaceText
-                        }
-
-                        StyledText {
-                            text: I18n.tr("Domains", "Browse mode label")
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: Font.Medium
-                            color: root.browseMode === "domain" ? Theme.primary : Theme.surfaceText
-                        }
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.requestBrowseModeChange("domain")
-                    }
-                }
-            }
-
             Rectangle {
-                width: parent.width
-                height: 40
+                width: parent.width - modeTabs.width - parent.spacing
+                height: parent.height
                 radius: Theme.cornerRadius
                 color: Theme.surfaceContainerLowest || Theme.surfaceContainer
                 border.width: searchInput.activeFocus ? 2 : 1
@@ -165,16 +92,16 @@ Rectangle {
                         width: parent.width - 56
                         height: parent.height
                         color: Theme.surfaceText
-                        font.pixelSize: Theme.fontSizeMedium
+                        font.pixelSize: Theme.fontSizeSmall + 1
                         verticalAlignment: TextInput.AlignVCenter
                         text: root.searchText
                         onTextChanged: root.requestSearchTextChange(text)
 
                         Text {
                             anchors.fill: parent
-                            text: I18n.tr("Search entities, names, or IDs...", "Entity browser search placeholder")
+                            text: I18n.tr("Search entities...", "Entity browser search placeholder")
                             color: Theme.surfaceVariantText
-                            font.pixelSize: Theme.fontSizeMedium
+                            font.pixelSize: Theme.fontSizeSmall + 1
                             verticalAlignment: Text.AlignVCenter
                             visible: !searchInput.text && !searchInput.activeFocus
                         }
@@ -204,6 +131,78 @@ Rectangle {
                                 root.requestSearchTextChange("");
                                 searchInput.focus = false;
                             }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                id: modeTabs
+                width: 84
+                height: parent.height
+                radius: Theme.cornerRadius
+                color: Theme.surfaceContainerLowest || Theme.surfaceContainer
+                border.width: 1
+                border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.14)
+
+                Row {
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    spacing: 4
+
+                    Rectangle {
+                        width: (parent.width - parent.spacing) / 2
+                        height: parent.height
+                        radius: Theme.cornerRadius * 0.8
+                        color: root.browseMode === "device"
+                            ? Theme.primaryContainer
+                            : "transparent"
+                        border.width: root.browseMode === "device" ? 0 : 1
+                        border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.10)
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            DankIcon {
+                                name: "devices"
+                                size: 16
+                                color: root.browseMode === "device" ? Theme.primary : Theme.surfaceText
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.requestBrowseModeChange("device")
+                        }
+                    }
+
+                    Rectangle {
+                        width: (parent.width - parent.spacing) / 2
+                        height: parent.height
+                        radius: Theme.cornerRadius * 0.8
+                        color: root.browseMode === "domain"
+                            ? Theme.primaryContainer
+                            : "transparent"
+                        border.width: root.browseMode === "domain" ? 0 : 1
+                        border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.10)
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            DankIcon {
+                                name: "category"
+                                size: 16
+                                color: root.browseMode === "domain" ? Theme.primary : Theme.surfaceText
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.requestBrowseModeChange("domain")
                         }
                     }
                 }
