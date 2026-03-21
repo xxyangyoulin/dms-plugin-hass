@@ -78,7 +78,7 @@ Rectangle {
                     radius: Theme.cornerRadius
                     color: root.browseMode === "device" ? Theme.primaryContainer : (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh)
                     border.width: root.browseMode === "device" ? 0 : 1
-                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.25)
+                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18)
 
                     Row {
                         anchors.centerIn: parent
@@ -111,7 +111,7 @@ Rectangle {
                     radius: Theme.cornerRadius
                     color: root.browseMode === "domain" ? Theme.primaryContainer : (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh)
                     border.width: root.browseMode === "domain" ? 0 : 1
-                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.25)
+                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18)
 
                     Row {
                         anchors.centerIn: parent
@@ -145,7 +145,7 @@ Rectangle {
                 radius: Theme.cornerRadius
                 color: Theme.surfaceContainerLowest || Theme.surfaceContainer
                 border.width: searchInput.activeFocus ? 2 : 1
-                border.color: searchInput.activeFocus ? Theme.primary : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.3)
+                border.color: searchInput.activeFocus ? Theme.primary : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18)
 
                 Row {
                     anchors.fill: parent
@@ -231,10 +231,10 @@ Rectangle {
                     height: 40
                     radius: Theme.cornerRadius * 0.8
                     color: groupMouse.containsMouse
-                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.08)
+                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.05)
                         : (Theme.surfaceContainerLowest || Theme.surfaceContainerLow || Theme.surfaceContainer)
                     border.width: 1
-                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.14)
+                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.10)
 
                     MouseArea {
                         id: groupMouse
@@ -320,7 +320,7 @@ Rectangle {
                     width: parent.width
                     active: groupColumn.isExpanded
                     visible: status === Loader.Ready
-                    asynchronous: true  // Load in background to avoid UI freeze
+                    asynchronous: false
                     
                     sourceComponent: Column {
                         width: parent ? parent.width - Theme.spacingM : groupColumn.width - Theme.spacingM
@@ -343,9 +343,24 @@ Rectangle {
                                     ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.25)
                                     : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18)
 
-                                property bool isMonitored: root.isEntityMonitored(modelData.entityId)
+                                property bool isMonitored: monitorOverride !== undefined ? !!monitorOverride : actualMonitored
                                 property bool isShortcut: HomeAssistantService.isShortcut(modelData.entityId)
                                 property bool canBeShortcut: modelData.domain === "button" || modelData.domain === "switch" || modelData.domain === "script" || modelData.domain === "scene"
+                                property var monitorOverride: undefined
+                                readonly property bool actualMonitored: root.isEntityMonitored(modelData.entityId)
+
+                                function requestMonitorToggle() {
+                                    monitorOverride = !isMonitored;
+                                    Qt.callLater(function() {
+                                        root.requestToggleMonitor(modelData.entityId);
+                                    });
+                                }
+
+                                onActualMonitoredChanged: {
+                                    if (monitorOverride !== undefined && actualMonitored === monitorOverride) {
+                                        monitorOverride = undefined;
+                                    }
+                                }
 
                                 Row {
                                     id: contentRow
@@ -378,7 +393,7 @@ Rectangle {
                                         MouseArea {
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.requestToggleMonitor(modelData.entityId)
+                                            onClicked: entityRowCard.requestMonitorToggle()
                                         }
                                     }
                                     
@@ -461,7 +476,7 @@ Rectangle {
                                     anchors.leftMargin: 80 // Leave space for checkboxes and star
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.requestToggleMonitor(modelData.entityId)
+                                    onClicked: entityRowCard.requestMonitorToggle()
                                 }
                             }
                         }

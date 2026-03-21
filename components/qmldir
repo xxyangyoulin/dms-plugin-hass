@@ -1,4 +1,15 @@
 singleton HomeAssistantService 1.0 ../services/HomeAssistantService.qml
+EntityCardHeader 1.0 EntityCardHeader.qml
+EntityQuickActionButton 1.0 EntityQuickActionButton.qml
+EntityHistorySection 1.0 EntityHistorySection.qml
+EntityRelatedSection 1.0 EntityRelatedSection.qml
+EntityDetailsSection 1.0 EntityDetailsSection.qml
+EntityExpandableContent 1.0 EntityExpandableContent.qml
+HomeAssistantOverviewPanel 1.0 HomeAssistantOverviewPanel.qml
+HomeAssistantConnectionBanner 1.0 HomeAssistantConnectionBanner.qml
+HomeAssistantBrowserPane 1.0 HomeAssistantBrowserPane.qml
+HomeAssistantEntityListPane 1.0 HomeAssistantEntityListPane.qml
+HomeAssistantDependencyOverlay 1.0 HomeAssistantDependencyOverlay.qml
+HomeAssistantIconPickerOverlay 1.0 HomeAssistantIconPickerOverlay.qml
 SegmentedControl 1.0 SegmentedControl.qml
-DynamicControl 1.0 DynamicControl.qml
 DynamicServiceControls 1.0 DynamicServiceControls.qml

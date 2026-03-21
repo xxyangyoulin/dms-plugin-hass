@@ -31,26 +31,26 @@ Column {
     }
     readonly property string bodyText: {
         if (haAvailable && entityCount === 0) {
-            return I18n.tr("Open the browser panel and add entities you want to keep on this dashboard.", "Home Assistant empty state hint");
+            return I18n.tr("Open the browser panel and add the entities you want on this dashboard.", "Home Assistant empty state hint");
         }
         if (connectionMessage) return connectionMessage;
         if (connectionStatus === "auth_error") {
-            return I18n.tr("Check your Home Assistant access token in the plugin settings and retry the connection.", "Home Assistant auth error hint");
+            return I18n.tr("Check the access token in plugin settings and retry the connection.", "Home Assistant auth error hint");
         }
         if (connectionStatus === "connecting") {
             return I18n.tr("Waiting for Home Assistant to complete authentication and return the initial entity list.", "Home Assistant connecting hint");
         }
         if (connectionStatus === "degraded") {
-            return I18n.tr("The server is reachable, but requests are timing out or reconnecting. Monitoring may be incomplete.", "Home Assistant degraded hint");
+            return I18n.tr("The server is reachable, but requests are timing out or reconnecting.", "Home Assistant degraded hint");
         }
         return I18n.tr("Check your Home Assistant URL and access token in the plugin settings.", "Home Assistant connection error hint");
     }
     readonly property string supportText: {
-        if (haAvailable && entityCount === 0) return I18n.tr("Tip: pin frequently used entities to the status bar after adding them.", "Home Assistant empty state support");
-        if (connectionStatus === "auth_error") return I18n.tr("The token likely expired or no longer has the required permissions.", "Home Assistant auth support");
-        if (connectionStatus === "connecting") return I18n.tr("This panel will populate automatically once the first sync completes.", "Home Assistant connecting support");
-        if (connectionStatus === "degraded") return I18n.tr("If this persists, verify the server is not under heavy load and that WebSocket access is enabled.", "Home Assistant degraded support");
-        return I18n.tr("If the server is online, re-open the plugin after updating the connection settings.", "Home Assistant connection support");
+        if (haAvailable && entityCount === 0) return I18n.tr("Pin frequently used entities to the status bar after adding them.", "Home Assistant empty state support");
+        if (connectionStatus === "auth_error") return I18n.tr("The token may have expired or lost the required permissions.", "Home Assistant auth support");
+        if (connectionStatus === "connecting") return I18n.tr("This panel fills automatically once the first sync completes.", "Home Assistant connecting support");
+        if (connectionStatus === "degraded") return I18n.tr("If this keeps happening, verify server load and WebSocket availability.", "Home Assistant degraded support");
+        return I18n.tr("If the server is online, reopen the plugin after updating the connection settings.", "Home Assistant connection support");
     }
 
     spacing: Theme.spacingL
@@ -67,7 +67,7 @@ Column {
         radius: Theme.cornerRadius * 1.6
         color: Theme.surfaceContainerHigh || Theme.surfaceContainer
         border.width: 1
-        border.color: Qt.rgba(root.statusColor.r, root.statusColor.g, root.statusColor.b, 0.18)
+        border.color: Qt.rgba(root.statusColor.r, root.statusColor.g, root.statusColor.b, 0.14)
 
         Column {
             id: contentColumn
@@ -80,7 +80,7 @@ Column {
                 height: 64
                 radius: 32
                 anchors.horizontalCenter: parent.horizontalCenter
-                color: Qt.rgba(root.statusColor.r, root.statusColor.g, root.statusColor.b, 0.12)
+                color: Qt.rgba(root.statusColor.r, root.statusColor.g, root.statusColor.b, 0.10)
 
                 DankIcon {
                     name: root.iconName
@@ -102,7 +102,7 @@ Column {
 
             StyledText {
                 text: root.bodyText
-                font.pixelSize: Theme.fontSizeMedium
+                font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
                 width: parent.width
                 wrapMode: Text.WordWrap
@@ -114,13 +114,15 @@ Column {
                 height: supportLabel.implicitHeight + Theme.spacingS * 2
                 radius: Theme.cornerRadius
                 color: Theme.surfaceContainerLowest || Theme.surfaceContainer
+                border.width: 1
+                border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.08)
 
                 StyledText {
                     id: supportLabel
                     anchors.fill: parent
                     anchors.margins: Theme.spacingS
                     text: root.supportText
-                    font.pixelSize: Theme.fontSizeSmall
+                    font.pixelSize: Theme.fontSizeSmall - 1
                     color: Theme.surfaceVariantText
                     wrapMode: Text.WordWrap
                     horizontalAlignment: Text.AlignHCenter

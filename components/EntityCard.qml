@@ -2,7 +2,6 @@ import "." as Components
 import "../services"
 import "./controls"
 import QtQuick
-import QtQuick.Layouts
 import qs.Common
 import qs.Modules.Plugins
 import qs.Services
@@ -31,6 +30,13 @@ StyledRect {
         if (availabilityIssue) return Theme.warning;
         return Components.HassConstants.getStateColor(entityData && entityData.domain ? entityData.domain : "", effectiveState, Theme);
     }
+    readonly property color iconBackgroundColor: Components.HassConstants.getIconBackgroundColor(entityData && entityData.domain ? entityData.domain : "", effectiveState, Theme)
+    readonly property string entityIconName: _getEntityIcon(entityData && entityData.entityId ? entityData.entityId : "", entityData && entityData.domain ? entityData.domain : "")
+    readonly property string stateSummaryText: {
+        const stateText = Components.HassConstants.formatStateValue(effectiveState, entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "");
+        if (actionError) return stateText + " • " + I18n.tr("Failed", "Entity action failed");
+        return stateText;
+    }
     property var entityActionState: ({ status: "idle", action: "", message: "", updatedAt: 0 })
     readonly property bool actionPending: entityActionState.status === "pending"
     readonly property bool actionError: entityActionState.status === "error"
@@ -39,13 +45,11 @@ StyledRect {
     property bool _hasActualContent: false
     property var historyData: []
     property var relatedEntities: []
-
     property bool isEditing: false
     property bool isRenaming: false
-    
-    onIsEditingChanged: {
-        if (!isEditing) isRenaming = false;
-    }
+    property string _renameBaseline: ""
+
+    onIsEditingChanged: if (!isEditing) isRenaming = false
 
     signal toggleExpand()
     signal togglePin()
@@ -69,31 +73,33 @@ StyledRect {
         const deviceEntityIds = HomeAssistantService.devicesCache[deviceName] || [];
         const all = globalAllEntities.value || [];
         const entityMap = {};
-        for (const e of all) entityMap[e.entityId] = e
-        const result = deviceEntityIds.filter((id) => id !== entityData.entityId).map((id) => entityMap[id]).filter((e) => e !== undefined);
-        relatedEntities = result;
+        for (const e of all)
+            entityMap[e.entityId] = e;
+        relatedEntities = deviceEntityIds
+            .filter((id) => id !== entityData.entityId)
+            .map((id) => entityMap[id])
+            .filter((e) => e !== undefined);
     }
 
     function _hasControls() {
         if (!entityData) return false;
-        var attrs = entityData.attributes || {};
-        var domain = entityData.domain;
-        if (["climate", "cover", "fan", "light", "media_player", "number", "input_number", "select", "input_select", "button"].includes(domain)) return true;
+        const attrs = entityData.attributes || {};
+        const domain = entityData.domain;
+        if (["climate", "cover", "fan", "light", "media_player", "number", "input_number", "select", "input_select", "button"].includes(domain))
+            return true;
         return attrs.brightness !== undefined || attrs.color_temp !== undefined || attrs.percentage !== undefined || attrs.current_position !== undefined || attrs.options !== undefined || attrs.effect_list !== undefined;
     }
 
     function _computeHasExpandableContent() {
         if (!entityData) return false;
-        // After first expand, use actual content check
         if (_hasExpandedOnce) return _hasActualContent;
-        // Before first expand, use prediction
-        var attrs = entityData.attributes || {};
-        var domain = entityData.domain;
+        const attrs = entityData.attributes || {};
+        const domain = entityData.domain;
         if (hasControls) return true;
         if (domain === "sensor" || domain === "binary_sensor") return true;
         if (showAttributes) {
-            var ignoredKeys = ["friendly_name", "icon", "unit_of_measurement", "device_class", "supported_features", "entity_id", "entity", "last_changed", "last_updated"];
-            var keys = Object.keys(attrs).filter(function(key) { return !ignoredKeys.includes(key); });
+            const ignoredKeys = ["friendly_name", "icon", "unit_of_measurement", "device_class", "supported_features", "entity_id", "entity", "last_changed", "last_updated"];
+            const keys = Object.keys(attrs).filter(function(key) { return !ignoredKeys.includes(key); });
             if (keys.length > 0) return true;
         }
         return false;
@@ -101,8 +107,10 @@ StyledRect {
 
     function _updateActualContent() {
         if (!_hasExpandedOnce) return;
-        var attrs = entityData ? entityData.attributes : {};
-        var hasAttrs = showAttributes && attrs && Object.keys(attrs).filter(function(key) { return key !== "friendly_name" && key !== "icon" && key !== "unit_of_measurement" && key !== "device_class"; }).length > 0;
+        const attrs = entityData ? entityData.attributes : {};
+        const hasAttrs = showAttributes && attrs && Object.keys(attrs).filter(function(key) {
+            return key !== "friendly_name" && key !== "icon" && key !== "unit_of_measurement" && key !== "device_class";
+        }).length > 0;
         _hasActualContent = hasControls || hasAttrs || historyData.length > 0 || (relatedEntities && relatedEntities.length > 0);
     }
 
@@ -119,6 +127,59 @@ StyledRect {
         entityActionState = HomeAssistantService.getEntityActionState(entityData && entityData.entityId ? entityData.entityId : "");
     }
 
+    function _startRename() {
+        if (!entityData)
+            return;
+        _renameBaseline = entityData.friendlyName || "";
+        isRenaming = true;
+        Qt.callLater(function() {
+            headerLoader.forceRenameFocus();
+        });
+    }
+
+    function _commitRename(nextName) {
+        const candidate = (nextName || "").trim();
+        const baseline = (_renameBaseline || "").trim();
+        isRenaming = false;
+        if (candidate === baseline)
+            return;
+        if (entityData && entityData.entityId)
+            HomeAssistantService.renameEntity(entityData.entityId, candidate);
+    }
+
+    function _cancelRename() {
+        isRenaming = false;
+    }
+
+    function _triggerQuickAction() {
+        const domain = entityData.domain;
+        const entityId = entityData.entityId;
+        const state = HomeAssistantService.getActualState(entityId) || entityData.state;
+        if (domain === "script" || domain === "automation") {
+            HomeAssistantService.triggerScript(entityId);
+        } else if (domain === "scene") {
+            HomeAssistantService.activateScene(entityId);
+        } else if (domain === "button") {
+            HomeAssistantService.callService("button", "press", entityId, {});
+        } else if (domain === "media_player") {
+            if (state === "playing")
+                HomeAssistantService.callService("media_player", "media_pause", entityId, {});
+            else
+                HomeAssistantService.callService("media_player", "media_play", entityId, {});
+        } else if (domain === "climate") {
+            const hvacModes = entityData.attributes && entityData.attributes.hvac_modes || ["off", "heat"];
+            const nextState = state === "off" ? (hvacModes.includes("heat") ? "heat" : hvacModes.find((m) => m !== "off") || "heat") : "off";
+            HomeAssistantService.setOptimisticState(entityId, "state", nextState);
+            HomeAssistantService.setHvacMode(entityId, nextState);
+        } else {
+            let nextState = state === "on" ? "off" : "on";
+            if (domain === "cover") nextState = state === "open" ? "closed" : "open";
+            if (domain === "lock") nextState = state === "locked" ? "unlocked" : "locked";
+            HomeAssistantService.setOptimisticState(entityId, "state", nextState);
+            HomeAssistantService.toggleEntity(entityId, domain, state);
+        }
+    }
+
     width: parent ? parent.width : 300
     radius: Theme.cornerRadius * 1.5
     color: isCurrentItem ? (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh) : (Theme.surfaceContainerLow || Theme.surfaceContainer)
@@ -132,13 +193,18 @@ StyledRect {
     onEntityDataChanged: {
         _updateRelatedEntities();
         _refreshActionState();
+        if (!isRenaming)
+            _renameBaseline = entityData && entityData.friendlyName ? entityData.friendlyName : "";
     }
-    Component.onCompleted: _refreshActionState()
+    Component.onCompleted: {
+        _renameBaseline = entityData && entityData.friendlyName ? entityData.friendlyName : "";
+        _refreshActionState();
+    }
     onIsExpandedChanged: {
         if (!_hasExpandedOnce && isExpanded) _hasExpandedOnce = true;
         _updateRelatedEntities();
         if (isExpanded && entityData) {
-            var domain = entityData.domain;
+            const domain = entityData.domain;
             if (domain === "sensor" || domain === "binary_sensor")
                 HomeAssistantService.fetchHistory(entityData.entityId, function(data) { historyData = data; _updateActualContent(); });
         }
@@ -155,15 +221,16 @@ StyledRect {
             pendingDotsPhase = 0;
         }
     }
+
     Connections {
         target: HomeAssistantService
         function onEntityActionStateChanged(entityId) {
-            if (entityData && entityData.entityId === entityId) {
+            if (entityData && entityData.entityId === entityId)
                 entityCard._refreshActionState();
-            }
         }
     }
-    height: baseHeight + (isExpanded && hasControls ? Theme.spacingM + controlsLoader.height : 0) + (isExpanded ? Theme.spacingM + attributesColumn.height : 0)
+
+    height: baseHeight + (isExpanded && hasControls ? Theme.spacingM + controlsLoader.height : 0) + (isExpanded ? Theme.spacingM + expandedContent.height : 0)
 
     PluginGlobalVar {
         id: globalAllEntities
@@ -176,9 +243,7 @@ StyledRect {
         interval: 300
         repeat: true
         running: entityCard.actionPending
-        onTriggered: {
-            entityCard.pendingDotsPhase = (entityCard.pendingDotsPhase + 1) % 3;
-        }
+        onTriggered: entityCard.pendingDotsPhase = (entityCard.pendingDotsPhase + 1) % 3
     }
 
     property int _lastRefreshCounter: 0
@@ -195,7 +260,6 @@ StyledRect {
         }
     }
 
-    // Hover feedback stays on the card header so expanded controls keep their own elevation.
     Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
@@ -203,183 +267,58 @@ StyledRect {
         height: entityCard.baseHeight
         radius: parent.radius
         color: entityCard.hoverTintColor
-        opacity: entityMouse.containsMouse ? 0.08 : 0
+        opacity: entityMouse.containsMouse ? 0.05 : 0
         z: 2
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
     }
 
-    // Icon with background circle
-    Rectangle {
-        id: iconContainer
-        width: 48; height: 48; radius: 24
+    EntityCardHeader {
+        id: headerLoader
+        width: parent.width - Theme.spacingM * 2 - (controlButton.visible ? controlButton.width + Theme.spacingS : 0) - (expandIcon.visible ? expandIcon.width + Theme.spacingS : 0)
+        height: entityCard.baseHeight
         anchors.left: parent.left
-        anchors.leftMargin: Theme.spacingM
+        anchors.leftMargin: 0
         anchors.top: parent.top
-        anchors.topMargin: (entityCard.baseHeight - height) / 2
-        z: 3
-        color: Components.HassConstants.getIconBackgroundColor(entityData && entityData.domain ? entityData.domain : "", entityCard._getEffectiveState(), Theme)
-
-        DankIcon {
-            id: entityIcon
-            name: entityCard._getEntityIcon(entityData && entityData.entityId ? entityData.entityId : "", entityData && entityData.domain ? entityData.domain : "")
-            size: 24
-            color: {
-                var state = entityCard._getEffectiveState();
-                return (state === "unavailable" || state === "unknown") ? Theme.warning : Components.HassConstants.getStateColor(entityData && entityData.domain ? entityData.domain : "", state, Theme);
-            }
-            anchors.centerIn: parent
-
-            RotationAnimation on rotation {
-                id: fanAnimation
-                from: 0; to: 360
-                duration: Math.max(500, 3000 - (entityCard._getEffectiveAttr("percentage", 50) * 25))
-                loops: Animation.Infinite
-                running: !!entityData && entityData.domain === "fan" && entityCard._getEffectiveState() === "on"
-            }
-            SequentialAnimation on opacity {
-                id: pulseAnimation
-                running: !!entityData && entityData.domain === "binary_sensor" && entityCard._getEffectiveState() === "on"
-                loops: Animation.Infinite
-                NumberAnimation { from: 1; to: 0.4; duration: 800; easing.type: Easing.InOutSine }
-                NumberAnimation { from: 0.4; to: 1; duration: 800; easing.type: Easing.InOutSine }
-            }
-            Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
-        }
-
-        // Light effect (simplified)
-        Rectangle {
-            anchors.centerIn: parent
-            width: parent.width - 4; height: parent.height - 4; radius: width / 2
-            color: "transparent"; border.width: 2; border.color: Theme.primary
-            opacity: 0; scale: 1
-            visible: !!entityData && entityData.domain === "light" && entityCard._getEffectiveState() === "on"
-            SequentialAnimation on opacity {
-                running: parent.visible; loops: Animation.Infinite
-                NumberAnimation { from: 0; to: 0.5; duration: 1500 }
-                NumberAnimation { from: 0.5; to: 0; duration: 1500 }
-            }
-            SequentialAnimation on scale {
-                running: parent.visible; loops: Animation.Infinite
-                NumberAnimation { from: 1; to: 1.4; duration: 3000; easing.type: Easing.OutCubic }
-                PropertyAction { value: 1 }
-            }
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            onClicked: { if (entityData && entityData.entityId) entityCard.openIconPicker(); }
-        }
-        Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
-    }
-
-    Column {
-        id: entityTextColumn
-        anchors.left: iconContainer.right
-        anchors.leftMargin: Theme.spacingM
+        radius: parent.radius
+        entityData: entityCard.entityData
+        customIcons: entityCard.customIcons
+        hoverTintColor: entityCard.hoverTintColor
+        stateTone: entityCard.stateTone
+        iconBackgroundColor: entityCard.iconBackgroundColor
+        iconName: entityCard.entityIconName
+        effectiveState: entityCard.effectiveState
+        stateText: entityCard.stateSummaryText
+        errorText: entityCard.entityActionState.message || I18n.tr("The last action did not complete", "Entity action error detail")
+        actionPending: entityCard.actionPending
+        actionError: entityCard.actionError
+        pendingDotsPhase: entityCard.pendingDotsPhase
+        isRenaming: entityCard.isRenaming
+        isEditing: entityCard.isEditing
+        showLightAnimation: !!entityCard.entityData && entityCard.entityData.domain === "light" && entityCard.effectiveState === "on"
+        showBinaryPulse: !!entityCard.entityData && entityCard.entityData.domain === "binary_sensor" && entityCard.effectiveState === "on"
+        showFanAnimation: !!entityCard.entityData && entityCard.entityData.domain === "fan" && entityCard.effectiveState === "on"
+        fanAnimationDuration: Math.max(500, 3000 - (entityCard._getEffectiveAttr("percentage", 50) * 25))
+        hovered: entityMouse.containsMouse
+        z: 4
         anchors.right: controlButton.visible ? controlButton.left : expandIcon.left
         anchors.rightMargin: Theme.spacingS
-        anchors.top: parent.top
-        anchors.topMargin: (entityCard.baseHeight - entityTextColumn.height) / 2
-        spacing: 4
 
-        TextInput {
-            id: nameInput
-            text: entityData && entityData.friendlyName ? entityData.friendlyName : ""
-            font.pixelSize: Theme.fontSizeMedium + 1
-            font.weight: Font.Medium
-            color: Theme.surfaceText
-            width: parent.width
-            clip: true
-            
-            readOnly: !isRenaming
-            selectByMouse: isRenaming
-            activeFocusOnPress: isRenaming
-            
-            onEditingFinished: {
-                isRenaming = false
-                if (entityData && entityData.entityId) {
-                    HomeAssistantService.renameEntity(entityData.entityId, text);
-                }
-            }
-            
-            onActiveFocusChanged: {
-                if (!activeFocus) isRenaming = false;
-            }
+        onIconClicked: {
+            if (entityData && entityData.entityId)
+                entityCard.openIconPicker();
         }
-
-        Flow {
-            width: parent.width
-            spacing: 4
-
-            Rectangle {
-                radius: 10
-                height: 22
-                color: Qt.rgba(entityCard.stateTone.r, entityCard.stateTone.g, entityCard.stateTone.b, entityCard.actionError ? 0.18 : 0.13)
-                border.width: 1
-                border.color: Qt.rgba(entityCard.stateTone.r, entityCard.stateTone.g, entityCard.stateTone.b, 0.24)
-                width: Math.min(parent.width, pillRow.implicitWidth + Theme.spacingS * 2)
-
-                Row {
-                    id: pillRow
-                    anchors.left: parent.left
-                    anchors.leftMargin: Theme.spacingS
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 3
-
-                    StyledText {
-                        text: {
-                            const stateText = Components.HassConstants.formatStateValue(entityCard.effectiveState, entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "");
-                            if (entityCard.actionError) return stateText + " • " + I18n.tr("Failed", "Entity action failed");
-                            return stateText;
-                        }
-                        font.pixelSize: Theme.fontSizeSmall - 1
-                        font.weight: Font.DemiBold
-                        color: entityCard.stateTone
-                        elide: Text.ElideRight
-                        maximumLineCount: 1
-                        width: Math.min(entityTextColumn.width - Theme.spacingM * 2, implicitWidth)
-                    }
-
-                    Row {
-                        id: dotsRow
-                        visible: entityCard.actionPending
-                        spacing: 1
-
-                        Repeater {
-                            model: 3
-
-                            StyledText {
-                                text: "•"
-                                font.pixelSize: Theme.fontSizeSmall
-                                font.weight: Font.Bold
-                                color: entityCard.stateTone
-                                opacity: index <= entityCard.pendingDotsPhase ? 1 : 0.3
-                            }
-                        }
-                    }
-                }
-            }
-
-        }
-
-        StyledText {
-            visible: entityCard.actionError
-            text: entityCard.entityActionState.message || I18n.tr("The last action did not complete", "Entity action error detail")
-            font.pixelSize: Theme.fontSizeSmall - 1
-            color: Theme.error
-            width: parent.width
-            maximumLineCount: 1
-            elide: Text.ElideRight
-        }
+        onRenameCommitted: entityCard._commitRename(text)
+        onRenameCancelled: entityCard._cancelRename()
     }
 
-    // Controls Loader
     Loader {
         id: controlsLoader
-        anchors.left: parent.left; anchors.leftMargin: Theme.spacingL + Theme.spacingS
-        anchors.right: parent.right; anchors.rightMargin: Theme.spacingL + Theme.spacingS
-        anchors.top: parent.top; anchors.topMargin: entityCard.baseHeight
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.spacingL + Theme.spacingS
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.spacingL + Theme.spacingS
+        anchors.top: parent.top
+        anchors.topMargin: entityCard.baseHeight
         visible: isExpanded && hasControls
         active: isExpanded && hasControls
         opacity: visible ? 1 : 0
@@ -405,210 +344,107 @@ StyledRect {
     Component { id: mediaPlayerControlsComp; MediaPlayerControls { entityData: entityCard.entityData } }
     Component { id: generalControlsComp; GeneralControls { entityData: entityCard.entityData } }
 
-    // Attributes & Extras
-    Column {
-        id: attributesColumn
-        anchors.left: parent.left; anchors.leftMargin: Theme.spacingL + Theme.spacingS
-        anchors.right: parent.right; anchors.rightMargin: Theme.spacingL + Theme.spacingS
-        anchors.top: parent.top; anchors.topMargin: controlsLoader.visible ? (controlsLoader.y + controlsLoader.height + Theme.spacingM) : entityCard.baseHeight
-        spacing: Theme.spacingS
-        visible: isExpanded
-        opacity: visible ? 1 : 0
-        height: visible ? implicitHeight : 0
+    EntityExpandableContent {
+        id: expandedContent
+        anchors.left: parent.left
+        anchors.leftMargin: Theme.spacingL + Theme.spacingS
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.spacingL + Theme.spacingS
+        anchors.top: parent.top
+        anchors.topMargin: controlsLoader.visible ? (controlsLoader.y + controlsLoader.height + Theme.spacingM) : entityCard.baseHeight
+        expanded: entityCard.isExpanded
         z: 15
 
-        // History
-        Column {
-            width: parent.width; spacing: Theme.spacingS; visible: historyData.length > 0
-            StyledText { text: I18n.tr("24h History", "Sensor history label"); font.pixelSize: Theme.fontSizeSmall; color: Theme.surfaceVariantText }
-            Sparkline { width: parent.width; height: 50; historyData: entityCard.historyData; unit: entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "" }
+        EntityHistorySection {
+            width: parent.width
+            historyData: entityCard.historyData
+            unit: entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : ""
         }
 
-        // Connected Entities
-        Column {
-            width: parent.width; spacing: Theme.spacingS; visible: entityCard.relatedEntities && entityCard.relatedEntities.length > 0
-            StyledText { text: I18n.tr("Connected Entities", "Control label"); font.pixelSize: Theme.fontSizeSmall; color: Theme.surfaceVariantText }
-            Flow {
-                width: parent.width; spacing: Theme.spacingS
-                Repeater {
-                    model: entityCard.relatedEntities
-                    delegate: StyledRect {
-                        height: 32; width: (parent.width - Theme.spacingS) / 2 - 1; radius: 6; color: Theme.surfaceContainerHigh
-                        Row {
-                            anchors.fill: parent; anchors.leftMargin: Theme.spacingS; anchors.rightMargin: Theme.spacingS; spacing: Theme.spacingS
-                            DankIcon { name: Components.HassConstants.getIconForDomain(modelData.domain); size: 14; color: Theme.primary; anchors.verticalCenter: parent.verticalCenter }
-                            StyledText { text: modelData.friendlyName; font.pixelSize: 10; color: Theme.surfaceText; elide: Text.ElideRight; width: parent.width - 60; anchors.verticalCenter: parent.verticalCenter }
-                            Item { Layout.fillWidth: true; height: 1 }
-                            StyledText { text: Components.HassConstants.formatStateValue(modelData.state, modelData.unitOfMeasurement); font.pixelSize: 10; font.weight: Font.Bold; color: Theme.primary; anchors.verticalCenter: parent.verticalCenter }
-                        }
-                    }
-                }
-            }
+        EntityRelatedSection {
+            width: parent.width
+            relatedEntities: entityCard.relatedEntities
         }
 
-        // Details Button
-        StyledRect {
-            width: parent.width; height: 32; visible: showAttributes; radius: Theme.cornerRadius
-            color: detailsToggleMouse.containsMouse ? Theme.surfaceContainerHigh : Theme.surfaceContainer
-            border.width: 1; border.color: detailsExpanded ? Theme.primary : Theme.outline
-            Row {
-                anchors.fill: parent; anchors.leftMargin: Theme.spacingM; anchors.rightMargin: Theme.spacingM; spacing: Theme.spacingS
-                DankIcon { name: detailsExpanded ? "expand_less" : "expand_more"; size: 18; color: detailsExpanded ? Theme.primary : Theme.surfaceVariantText; anchors.verticalCenter: parent.verticalCenter }
-                StyledText { text: detailsExpanded ? I18n.tr("Hide Details", "Entity card hide details button") : I18n.tr("Show Details", "Entity card show details button"); font.pixelSize: Theme.fontSizeSmall; font.weight: Font.Medium; color: detailsExpanded ? Theme.primary : Theme.surfaceText; anchors.verticalCenter: parent.verticalCenter }
-            }
-            MouseArea {
-                id: detailsToggleMouse
-                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; propagateComposedEvents: false
-                onClicked: { mouse.accepted = true; entityCard.toggleDetails(); }
-            }
+        EntityDetailsSection {
+            width: parent.width
+            entityData: entityCard.entityData
+            detailsExpanded: entityCard.detailsExpanded
+            showAttributes: entityCard.showAttributes
+            onToggleDetails: entityCard.toggleDetails()
         }
-
-        // Details Content
-        Column {
-            width: parent.width; spacing: Theme.spacingS; visible: detailsExpanded && showAttributes; opacity: visible ? 1 : 0; height: visible ? implicitHeight : 0
-            Rectangle {
-                width: parent.width; height: entityIdText.height + Theme.spacingS * 2; color: Theme.surfaceContainerLowest || Theme.surfaceContainer; radius: Theme.cornerRadius
-                StyledText { id: entityIdText; anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: Theme.spacingS; anchors.rightMargin: Theme.spacingS; anchors.verticalCenter: parent.verticalCenter; text: entityData && entityData.entityId ? entityData.entityId : ""; font.pixelSize: Theme.fontSizeSmall - 1; font.family: "monospace"; color: Theme.surfaceVariantText; opacity: 0.9; elide: Text.ElideMiddle; wrapMode: Text.NoWrap }
-            }
-            Repeater {
-                model: {
-                    if (!entityData || !entityData.attributes) return [];
-                    var attrs = entityData.attributes;
-                    var keys = Object.keys(attrs).filter(function(key) { return key !== "friendly_name" && key !== "icon" && key !== "unit_of_measurement"; });
-                    return keys.slice(0, 15);
-                }
-                Rectangle {
-                    width: parent.width; height: attrContent.height + Theme.spacingXS * 2; color: "transparent"; radius: Theme.cornerRadius
-                    Row {
-                        id: attrContent
-                        anchors.left: parent.left; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; spacing: Theme.spacingS
-                        StyledText { text: modelData.replace(/_/g, " ") + ":"; font.pixelSize: Theme.fontSizeSmall; font.weight: Font.Medium; color: Theme.surfaceVariantText; width: Math.min(140, parent.width * 0.35); elide: Text.ElideRight; verticalAlignment: Text.AlignTop; wrapMode: Text.NoWrap }
-                        StyledText {
-                            text: { const val = entityData.attributes[modelData]; if (typeof val === "object") return JSON.stringify(val, null, 2); return String(val); }
-                            font.pixelSize: Theme.fontSizeSmall; color: Theme.surfaceText; width: parent.width - Math.min(140, parent.width * 0.35) - Theme.spacingS; wrapMode: Text.Wrap; maximumLineCount: 5; elide: Text.ElideRight
-                        }
-                    }
-                }
-            }
-            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-        }
-
-        Behavior on opacity { NumberAnimation { duration: Theme.expressiveDurations["expressiveEffects"]; easing.type: Theme.standardEasing } }
     }
 
-    // Quick control button
-    Rectangle {
+    EntityQuickActionButton {
         id: controlButton
-        width: isControllable && !isEditing ? 44 : 0
-        height: 44
-        radius: 22
-        visible: isControllable && !isEditing
-        color: {
-            if (entityCard.actionError) return Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.16);
-            const state = entityCard._getEffectiveState();
-            const domain = entityData && entityData.domain ? entityData.domain : "";
-            return Components.HassConstants.isActiveState(domain, state) ? Theme.primary : Theme.surfaceVariant;
-        }
         anchors.right: expandIcon.left
-        anchors.rightMargin: isControllable ? Theme.spacingS : 0
+        anchors.rightMargin: Theme.spacingS
         anchors.top: parent.top
-        anchors.topMargin: (entityCard.baseHeight - controlButton.height) / 2
+        anchors.topMargin: (entityCard.baseHeight - height) / 2
         z: 10
-        // Hover
-        Rectangle {
-            anchors.fill: parent; radius: parent.radius; color: "#000000"; opacity: controlMouse.containsMouse ? 0.1 : 0
-            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+        visibleWhenActive: isControllable && !isEditing
+        actionPending: entityCard.actionPending
+        actionError: entityCard.actionError
+        activeState: entityCard.activeState
+        activeColor: Theme.primary
+        inactiveColor: Theme.surfaceVariant
+        activeIconColor: Theme.primaryText
+        inactiveIconColor: Theme.surfaceText
+        iconName: {
+            const domain = entityData && entityData.domain ? entityData.domain : "";
+            const state = entityCard._getEffectiveState();
+            if (entityCard.actionError) return "error";
+            if (domain === "script" || domain === "automation") return "play_arrow";
+            if (domain === "scene") return "palette";
+            if (domain === "cover") return state === "open" ? "expand_more" : "expand_less";
+            if (domain === "lock") return state === "locked" ? "lock" : "lock_open";
+            if (domain === "climate") return state !== "off" ? "local_fire_department" : "power_settings_new";
+            return "power_settings_new";
         }
-        DankIcon {
-            name: {
-                var domain = entityData && entityData.domain ? entityData.domain : "";
-                var state = entityCard._getEffectiveState();
-                if (entityCard.actionError) return "error";
-                if (domain === "script" || domain === "automation") return "play_arrow";
-                if (domain === "scene") return "palette";
-                if (domain === "cover") return state === "open" ? "expand_more" : "expand_less";
-                if (domain === "lock") return state === "locked" ? "lock" : "lock_open";
-                if (domain === "climate") return state !== "off" ? "local_fire_department" : "power_settings_new";
-                return "power_settings_new";
-            }
-            size: 22
-            color: {
-                if (entityCard.actionError) return Theme.error;
-                var domain = entityData && entityData.domain ? entityData.domain : "";
-                var state = entityCard._getEffectiveState();
-                return Components.HassConstants.isActiveState(domain, state) ? Theme.primaryText : Theme.surfaceText;
-            }
-            anchors.centerIn: parent
-        }
-        MouseArea {
-            id: controlMouse
-            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; propagateComposedEvents: false
-            enabled: !entityCard.actionPending
-            onClicked: {
-                var domain = entityData.domain;
-                var entityId = entityData.entityId;
-                // Use actual state instead of optimistic state for toggle logic
-                var state = HomeAssistantService.getActualState(entityId) || entityData.state;
-                var friendlyName = entityData.friendlyName;
-                if (domain === "script" || domain === "automation") {
-                    HomeAssistantService.triggerScript(entityId);
-                    ToastService.showInfo(I18n.tr("Executing", "Entity control action") + " " + friendlyName);
-                } else if (domain === "scene") {
-                    HomeAssistantService.activateScene(entityId);
-                    ToastService.showInfo(I18n.tr("Activating", "Entity control action") + " " + friendlyName);
-                } else if (domain === "button") {
-                    HomeAssistantService.callService("button", "press", entityId, {});
-                    ToastService.showInfo(I18n.tr("Pressing", "Entity control action") + " " + friendlyName);
-                } else if (domain === "media_player") {
-                    if (state === "playing") { HomeAssistantService.callService("media_player", "media_pause", entityId, {}); ToastService.showInfo(I18n.tr("Pausing", "Entity control action")); }
-                    else { HomeAssistantService.callService("media_player", "media_play", entityId, {}); ToastService.showInfo(I18n.tr("Playing", "Entity control action")); }
-                } else if (domain === "climate") {
-                    var hvacModes = entityData.attributes && entityData.attributes.hvac_modes || ["off", "heat"];
-                    var nextState = state === "off" ? (hvacModes.includes("heat") ? "heat" : hvacModes.find((m) => m !== "off") || "heat") : "off";
-                    HomeAssistantService.setOptimisticState(entityId, "state", nextState);
-                    HomeAssistantService.setHvacMode(entityId, nextState);
-                    ToastService.showInfo(I18n.tr("Setting", "Entity control action") + " " + friendlyName + " → " + nextState);
-                } else {
-                    var nextState = state === "on" ? "off" : "on";
-                    if (domain === "cover") nextState = state === "open" ? "closed" : "open";
-                    if (domain === "lock") nextState = state === "locked" ? "unlocked" : "locked";
-                    HomeAssistantService.setOptimisticState(entityId, "state", nextState);
-                    HomeAssistantService.toggleEntity(entityId, domain, state);
-                    ToastService.showInfo(I18n.tr("Turning", "Entity control action") + " " + nextState);
-                }
-            }
-        }
+        onClicked: entityCard._triggerQuickAction()
     }
 
     Rectangle {
         id: expandIcon
-        width: 40; height: 40; radius: 20
+        width: 40
+        height: 40
+        radius: 20
         color: Qt.rgba(0, 0, 0, 0)
-        anchors.right: parent.right; anchors.rightMargin: Theme.spacingS
-        anchors.top: parent.top; anchors.topMargin: (entityCard.baseHeight - height) / 2
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.spacingS
+        anchors.top: parent.top
+        anchors.topMargin: (entityCard.baseHeight - height) / 2
         z: 10
         visible: !isEditing && hasExpandableContent
 
         DankIcon {
-            name: isExpanded ? "expand_less" : "expand_more"; size: 20; color: Theme.surfaceText; anchors.centerIn: parent
-            Behavior on rotation { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+            name: isExpanded ? "expand_less" : "expand_more"
+            size: 20
+            color: Theme.surfaceText
+            anchors.centerIn: parent
         }
+
         MouseArea {
-            anchors.fill: parent; hoverEnabled: false; cursorShape: Qt.PointingHandCursor; propagateComposedEvents: false
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            preventStealing: true
+            propagateComposedEvents: false
             onClicked: entityCard.toggleExpand()
         }
     }
 
-    // Edit Controls Overlay (Visible in Edit Mode)
     Row {
-        anchors.right: parent.right; anchors.rightMargin: Theme.spacingS
-        anchors.top: parent.top; anchors.topMargin: (entityCard.baseHeight - height) / 2
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.spacingS
+        anchors.top: parent.top
+        anchors.topMargin: (entityCard.baseHeight - height) / 2
         spacing: 2
         visible: isEditing
         z: 20
 
         EditActionButton {
-            width: 32; height: 32
+            width: 32
+            height: 32
             iconName: "push_pin"
             iconSize: 16
             iconColor: isPinned ? (Theme.primary || "transparent") : Theme.surfaceText
@@ -619,7 +455,18 @@ StyledRect {
         }
 
         EditActionButton {
-            width: 32; height: 32
+            width: 32
+            height: 32
+            iconName: "vertical_align_top"
+            iconSize: 16
+            iconColor: Theme.surfaceText
+            backgroundColor: Theme.surfaceContainerHigh || "transparent"
+            onClicked: HomeAssistantService.moveEntityToTop(entityData.entityId)
+        }
+
+        EditActionButton {
+            width: 32
+            height: 32
             iconName: "arrow_upward"
             iconSize: 16
             iconColor: Theme.surfaceText
@@ -628,7 +475,8 @@ StyledRect {
         }
 
         EditActionButton {
-            width: 32; height: 32
+            width: 32
+            height: 32
             iconName: "arrow_downward"
             iconSize: 16
             iconColor: Theme.surfaceText
@@ -637,7 +485,8 @@ StyledRect {
         }
 
         EditActionButton {
-            width: 32; height: 32
+            width: 32
+            height: 32
             iconName: "close"
             iconSize: 14
             iconColor: Theme.primaryText
@@ -648,24 +497,24 @@ StyledRect {
 
     MouseArea {
         id: entityMouse
-        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
         height: entityCard.baseHeight
-        hoverEnabled: true; cursorShape: hasExpandableContent ? Qt.PointingHandCursor : Qt.ArrowCursor; z: 1
-        enabled: !isRenaming // Allow clicks unless renaming input is active
+        hoverEnabled: true
+        cursorShape: hasExpandableContent ? Qt.PointingHandCursor : Qt.ArrowCursor
+        preventStealing: true
+        z: 1
+        enabled: !isRenaming
 
         onClicked: {
-            if (isEditing) {
-                // In edit mode single click could select or do nothing (currently nothing special requested for selection visual)
-            } else if (hasExpandableContent) {
+            if (!isEditing && hasExpandableContent)
                 entityCard.toggleExpand();
-            }
         }
 
         onDoubleClicked: {
             if (isEditing) {
-                isRenaming = true;
-                nameInput.forceActiveFocus();
-                nameInput.selectAll();
+                entityCard._startRename();
             } else if (hasExpandableContent) {
                 entityCard.toggleExpand();
             }

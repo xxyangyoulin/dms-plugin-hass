@@ -15,7 +15,7 @@ Column {
     readonly property int contentHeight: topSpacer.height
         + (rowCount > 0 ? rowCount * chipHeight + Math.max(0, rowCount - 1) * shortcutsGrid.rowSpacing : 0)
         + bottomSpacer.height
-        + spacing * 2
+        + spacing
 
     // Keep a small breathing room without wasting vertical space.
     Item {
@@ -151,6 +151,6 @@ Column {
     Item {
         id: bottomSpacer
         width: 1
-        height: Theme.spacingXS
+        height: 0
     }
 }

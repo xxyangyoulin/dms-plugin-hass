@@ -12,8 +12,8 @@ PluginComponent {
     property var expandedEntities: ({})
     property var showEntityDetails: ({})
     property bool showAttributes: pluginData.showAttributes !== undefined ? pluginData.showAttributes : true
-    property var pinnedEntities: pluginData.pinnedEntities || []
-    property var customIcons: pluginData.customIcons || ({})
+    property var pinnedEntities: []
+    property var customIcons: ({})
 
     // Cache for status bar - use computed properties to ensure proper scope
     readonly property var cachedGlobalEntities: globalEntities.value || []
@@ -26,6 +26,7 @@ PluginComponent {
     property var entityListView: null
     property bool showEntityBrowser: false
     property string entitySearchText: ""
+    property var pendingMonitorOperations: ({})
     readonly property int compactPopoutWidth: 420
     readonly property int compactContentWidth: compactPopoutWidth - Theme.spacingM * 2
     readonly property int rightColumnWidth: compactContentWidth
@@ -37,6 +38,92 @@ PluginComponent {
 
     Ref {
         service: HomeAssistantService
+    }
+
+    function loadPersistentUiValue(key, fallbackValue) {
+        if (pluginService && pluginService.loadPluginState) {
+            const stateValue = pluginService.loadPluginState("homeAssistantMonitor", key, undefined);
+            if (stateValue !== undefined) {
+                return stateValue;
+            }
+        }
+
+        const pluginValue = pluginData[key];
+        return pluginValue !== undefined ? pluginValue : fallbackValue;
+    }
+
+    function savePersistentUiValue(key, value) {
+        if (pluginService && pluginService.savePluginState) {
+            pluginService.savePluginState("homeAssistantMonitor", key, value);
+            return;
+        }
+        if (pluginService) {
+            pluginService.savePluginData("homeAssistantMonitor", key, value);
+        }
+    }
+
+    function loadPersistentUiPreference(key, fallbackValue) {
+        const pluginValue = pluginData[key];
+        if (pluginValue !== undefined) {
+            return pluginValue;
+        }
+
+        if (pluginService && pluginService.loadPluginState) {
+            const stateValue = pluginService.loadPluginState("homeAssistantMonitor", key, undefined);
+            if (stateValue !== undefined) {
+                pluginService.savePluginData("homeAssistantMonitor", key, stateValue);
+                return stateValue;
+            }
+        }
+
+        return fallbackValue;
+    }
+
+    function savePersistentUiPreference(key, value) {
+        if (pluginService) {
+            pluginService.savePluginData("homeAssistantMonitor", key, value);
+        }
+    }
+
+    function updatePinnedEntities(nextPinned) {
+        pinnedEntities = nextPinned;
+        savePersistentUiPreference("pinnedEntities", nextPinned);
+    }
+
+    function removePinnedEntity(entityId) {
+        const nextPinned = pinnedEntities.filter(id => id !== entityId);
+        if (nextPinned.length !== pinnedEntities.length) {
+            updatePinnedEntities(nextPinned);
+        }
+    }
+
+    function buildEntityMap(entities) {
+        const entityMap = {};
+        for (const entity of entities || []) {
+            entityMap[entity.entityId] = entity;
+        }
+        return entityMap;
+    }
+
+    function matchesEntitySearch(entity, searchLower, extraText) {
+        if (!searchLower) {
+            return true;
+        }
+
+        const friendlyName = entity && entity.friendlyName ? entity.friendlyName.toLowerCase() : "";
+        const entityId = entity && entity.entityId ? entity.entityId.toLowerCase() : "";
+        const supplemental = extraText ? extraText.toLowerCase() : "";
+
+        return friendlyName.includes(searchLower) ||
+            entityId.includes(searchLower) ||
+            supplemental.includes(searchLower);
+    }
+
+    function queueMonitorOperation(entityId, shouldMonitor) {
+        const nextOperations = Object.assign({}, pendingMonitorOperations);
+        nextOperations[entityId] = shouldMonitor;
+        pendingMonitorOperations = nextOperations;
+        monitorOperationTimer.restart();
     }
 
     function cleanupPinnedEntities() {
@@ -55,10 +142,14 @@ PluginComponent {
         });
 
         if (pinned.length !== pinnedEntities.length) {
-            pinnedEntities = pinned;
-            if (pluginService) {
-                pluginService.savePluginData("homeAssistantMonitor", "pinnedEntities", pinned);
-            }
+            updatePinnedEntities(pinned);
+        }
+    }
+
+    function syncPinnedEntitiesFromStorage() {
+        const persistedPinned = loadPersistentUiPreference("pinnedEntities", []);
+        if (JSON.stringify(persistedPinned) !== JSON.stringify(pinnedEntities)) {
+            pinnedEntities = persistedPinned;
         }
     }
 
@@ -104,125 +195,11 @@ PluginComponent {
         defaultValue: []
     }
 
-    ListModel {
-        id: monitoredListModel
-    }
-
-    // Track last sync state to avoid redundant operations
-    property string _lastSyncHash: ""
-
-    function syncMonitoredList() {
-        const entities = globalEntities.value || [];
-
-        // Get optimistic states from HomeAssistantService
-        const optimisticStates = HomeAssistantService.optimisticStates || {};
-
-        // Fast path: check if any changes at all (quick hash check)
-        // Include optimistic states in hash to detect relevant changes
-        const optimisticKeys = Object.keys(optimisticStates).sort();
-        const optimisticHash = optimisticKeys.map(id => `${id}:${JSON.stringify(optimisticStates[id])}`).join("|");
-        const newHash = entities.map(e => `${e.entityId}:${e.state}:${e.friendlyName}:${e.lastUpdated}`).join(",") + "|" + optimisticHash;
-        if (newHash === _lastSyncHash && monitoredListModel.count === entities.length) {
-            return;
-        }
-        _lastSyncHash = newHash;
-        
-        // Use smart diffing for incremental updates
-        const currentIds = [];
-        for (let i = 0; i < monitoredListModel.count; i++) {
-            currentIds.push(monitoredListModel.get(i).entityId);
-        }
-        
-        const newIds = entities.map(e => e.entityId);
-        
-        // Just update values, no structural change
-        if (JSON.stringify(currentIds) === JSON.stringify(newIds)) {
-            for (let i = 0; i < entities.length; i++) {
-                const entity = entities[i];
-                // Apply optimistic state overrides if present
-                const entityOptimisticStates = optimisticStates[entity.entityId];
-                if (entityOptimisticStates) {
-                    // Create a copy with optimistic states applied
-                    const updatedEntity = Object.assign({}, entity);
-                    for (const key in entityOptimisticStates) {
-                        if (key === "state") {
-                            updatedEntity.state = entityOptimisticStates[key];
-                        } else if (updatedEntity.attributes) {
-                            // For attributes, we need to merge them
-                            updatedEntity.attributes = Object.assign({}, updatedEntity.attributes);
-                            updatedEntity.attributes[key] = entityOptimisticStates[key];
-                        }
-                    }
-                    monitoredListModel.set(i, updatedEntity);
-                } else {
-                    monitoredListModel.set(i, entity);
-                }
-            }
-            return;
-        }
-        
-        // Full rebuild
-        monitoredListModel.clear();
-        for (const ent of entities) {
-            // Apply optimistic state overrides if present
-            const entityOptimisticStates = optimisticStates[ent.entityId];
-            if (entityOptimisticStates) {
-                // Create a copy with optimistic states applied
-                const updatedEntity = Object.assign({}, ent);
-                for (const key in entityOptimisticStates) {
-                    if (key === "state") {
-                        updatedEntity.state = entityOptimisticStates[key];
-                    } else if (updatedEntity.attributes) {
-                        // For attributes, we need to merge them
-                        updatedEntity.attributes = Object.assign({}, updatedEntity.attributes);
-                        updatedEntity.attributes[key] = entityOptimisticStates[key];
-                    }
-                }
-                monitoredListModel.append(updatedEntity);
-            } else {
-                monitoredListModel.append(ent);
-            }
-        }
-    }
-
     Connections {
         target: globalEntities
         function onValueChanged() {
             cleanupPinnedEntities();
-            syncMonitoredList();
-        }
-    }
-
-    Connections {
-        target: HomeAssistantService
-        function onEntityDataChanged(entityId) {
-            // Get the latest entity data from HomeAssistantService
-            const entityData = HomeAssistantService.getEntityData(entityId);
-            if (!entityData) return;
-
-            // Update the entity in the ListModel
-            for (var i = 0; i < monitoredListModel.count; i++) {
-                var current = monitoredListModel.get(i);
-                if (current.entityId === entityId) {
-                    monitoredListModel.set(i, {
-                        entityId: entityData.entityId,
-                        domain: entityData.domain,
-                        state: entityData.state,
-                        friendlyName: entityData.friendlyName,
-                        unitOfMeasurement: entityData.unitOfMeasurement || "",
-                        attributes: entityData.attributes || {}
-                    });
-                    break;
-                }
-            }
-        }
-    }
-
-    Connections {
-        target: HomeAssistantService
-        function onPendingConfirmationResolved(entityId) {
-            // 1 second passed, sync to ensure UI shows actual state
-            syncMonitoredList();
+            syncSelectionState();
         }
     }
 
@@ -233,10 +210,15 @@ PluginComponent {
         }
     }
 
+    onPluginDataChanged: {
+        syncPinnedEntitiesFromStorage();
+    }
+
     Component.onCompleted: {
+        syncPinnedEntitiesFromStorage();
+        customIcons = loadPersistentUiValue("customIcons", ({}));
         cleanupPinnedEntities();
-        // Initial sync in case globalEntities already has data
-        syncMonitoredList();
+        syncSelectionState();
     }
 
     function toggleEntity(entityId) {
@@ -256,26 +238,57 @@ PluginComponent {
         root.showEntityDetails = ({});
     }
 
+    function syncSelectionState() {
+        const entities = globalEntities.value || [];
+        if (!entities.length) {
+            selectedEntityId = "";
+            keyboardNavigationActive = false;
+            return;
+        }
+
+        if (!selectedEntityId) {
+            return;
+        }
+
+        const exists = entities.some(function(entity) {
+            return entity.entityId === selectedEntityId;
+        });
+
+        if (!exists) {
+            selectedEntityId = "";
+            keyboardNavigationActive = false;
+        }
+    }
+
+    function resetPopoutState() {
+        root.collapseAllEntities();
+        root.closeIconPicker();
+        root.isEditing = false;
+        root.showEntityBrowser = false;
+        root.entitySearchText = "";
+        root.selectedEntityId = "";
+        root.keyboardNavigationActive = false;
+    }
+
+    function toggleEntityBrowser() {
+        root.showEntityBrowser = !root.showEntityBrowser;
+        if (!root.showEntityBrowser) {
+            root.closeIconPicker();
+            root.entitySearchText = "";
+        }
+    }
+
     function togglePinEntity(entityId) {
         var pinned = Array.from(pinnedEntities);
         var index = pinned.indexOf(entityId);
-        var isPinning = index < 0;
 
-        if (isPinning) {
+        if (index < 0) {
             pinned.push(entityId);
         } else {
             pinned.splice(index, 1);
         }
 
-        pinnedEntities = pinned;
-        if (pluginService) {
-            pluginService.savePluginData("homeAssistantMonitor", "pinnedEntities", pinned);
-        }
-
-        ToastService.showInfo(I18n.tr(
-            isPinning ? "Pinned to status bar" : "Unpinned from status bar",
-            "Entity pin status notification"
-        ));
+        updatePinnedEntities(pinned);
     }
 
     function isPinned(entityId) {
@@ -284,11 +297,13 @@ PluginComponent {
 
     readonly property var pinnedEntitiesData: {
         const entities = globalEntities.value || [];
-        const entityMap = {};
-        for (let i = 0; i < entities.length; i++) {
-            entityMap[entities[i].entityId] = entities[i];
-        }
+        const entityMap = buildEntityMap(entities);
         return pinnedEntities.map(id => entityMap[id]).filter(e => e !== undefined);
+    }
+
+    readonly property var monitoredEntityIds: {
+        const list = globalEntities.value || [];
+        return list.map(e => e.entityId);
     }
 
     // Debounced search text
@@ -300,6 +315,27 @@ PluginComponent {
         repeat: false
         onTriggered: root.debouncedSearchText = root.entitySearchText
     }
+
+    Timer {
+        id: monitorOperationTimer
+        interval: 16
+        repeat: false
+        onTriggered: {
+            const operations = pendingMonitorOperations;
+            pendingMonitorOperations = ({});
+
+            for (const entityId in operations) {
+                const shouldMonitor = !!operations[entityId];
+
+                if (!shouldMonitor) {
+                    removePinnedEntity(entityId);
+                    HomeAssistantService.removeEntityFromMonitor(entityId);
+                } else {
+                    HomeAssistantService.addEntityToMonitor(entityId);
+                }
+            }
+        }
+    }
     
     onEntitySearchTextChanged: {
         searchDebounceTimer.restart();
@@ -308,13 +344,7 @@ PluginComponent {
     readonly property var entityDomains: {
         const entities = globalAllEntities.value || [];
         const searchLower = debouncedSearchText.toLowerCase().trim();
-
-        const filteredEntities = searchLower
-            ? entities.filter(e => {
-                return (e.friendlyName && e.friendlyName.toLowerCase().includes(searchLower)) ||
-                       (e.entityId && e.entityId.toLowerCase().includes(searchLower));
-            })
-            : entities;
+        const filteredEntities = searchLower ? entities.filter(e => matchesEntitySearch(e, searchLower, "")) : entities;
 
         const domains = {};
         for (let i = 0; i < filteredEntities.length; i++) {
@@ -344,14 +374,8 @@ PluginComponent {
         const devicesCache = HomeAssistantService.devicesCache || {};
         const allEntities = globalAllEntities.value || [];
         const searchLower = debouncedSearchText.toLowerCase().trim();
+        const entityMap = buildEntityMap(allEntities);
 
-        // Create entity lookup map
-        const entityMap = {};
-        for (const entity of allEntities) {
-            entityMap[entity.entityId] = entity;
-        }
-
-        // Build device list with expanded entities
         const devices = [];
         const sortedDeviceNames = Object.keys(devicesCache).sort((a, b) => a.localeCompare(b));
 
@@ -360,12 +384,7 @@ PluginComponent {
             const deviceEntities = entityIds
                 .map(id => entityMap[id])
                 .filter(e => e !== undefined)
-                .filter(e => {
-                    if (!searchLower) return true;
-                    return (e.friendlyName && e.friendlyName.toLowerCase().includes(searchLower)) ||
-                           (e.entityId && e.entityId.toLowerCase().includes(searchLower)) ||
-                           deviceName.toLowerCase().includes(searchLower);
-                })
+                .filter(e => matchesEntitySearch(e, searchLower, deviceName))
                 .sort((a, b) => a.friendlyName.localeCompare(b.friendlyName));
 
             if (deviceEntities.length > 0) {
@@ -387,60 +406,42 @@ PluginComponent {
         return entities.some(e => e.entityId === entityId);
     }
 
-    function toggleMonitorEntity(entityId) {
-        const isMonitored = isEntityMonitored(entityId);
-
-        if (isMonitored) {
-            const pinned = pinnedEntities.filter(id => id !== entityId);
-            if (pinned.length !== pinnedEntities.length) {
-                pinnedEntities = pinned;
-                if (pluginService) {
-                    pluginService.savePluginData("homeAssistantMonitor", "pinnedEntities", pinned);
-                }
-            }
-            HomeAssistantService.removeEntityFromMonitor(entityId);
-        } else {
-            HomeAssistantService.addEntityToMonitor(entityId);
+    function moveSelection(offset) {
+        const entities = globalEntities.value || [];
+        if (!entities.length) {
+            return;
         }
 
-        ToastService.showInfo(I18n.tr(
-            isMonitored ? "Entity removed from monitoring" : "Entity added to monitoring",
-            "Entity monitoring notification"
-        ));
+        if (!keyboardNavigationActive || !selectedEntityId) {
+            keyboardNavigationActive = true;
+            selectedEntityId = entities[0].entityId;
+            return;
+        }
+
+        const currentIndex = entities.findIndex(function(e) { return e.entityId === selectedEntityId; });
+        if (currentIndex < 0) {
+            selectedEntityId = entities[0].entityId;
+            return;
+        }
+
+        const nextIndex = Math.max(0, Math.min(entities.length - 1, currentIndex + offset));
+        if (nextIndex !== currentIndex) {
+            selectedEntityId = entities[nextIndex].entityId;
+            ensureVisible();
+        }
+    }
+
+    function toggleMonitorEntity(entityId) {
+        const isMonitored = isEntityMonitored(entityId);
+        queueMonitorOperation(entityId, !isMonitored);
     }
 
     function selectNext() {
-        var entities = globalEntities.value || [];
-        if (!entities.length) return;
-
-        if (!keyboardNavigationActive) {
-            keyboardNavigationActive = true;
-            selectedEntityId = entities[0].entityId;
-            return;
-        }
-
-        var currentIndex = entities.findIndex(function(e) { return e.entityId === selectedEntityId; });
-        if (currentIndex < entities.length - 1) {
-            selectedEntityId = entities[currentIndex + 1].entityId;
-            ensureVisible();
-        }
+        moveSelection(1);
     }
 
     function selectPrevious() {
-        var entities = globalEntities.value || [];
-        if (!entities.length) return;
-
-        if (!keyboardNavigationActive) {
-            keyboardNavigationActive = true;
-            selectedEntityId = entities[0].entityId;
-            return;
-        }
-
-        var currentIndex = entities.findIndex(function(e) { return e.entityId === selectedEntityId; });
-        if (currentIndex > 0) {
-            selectedEntityId = entities[currentIndex - 1].entityId;
-            ensureVisible();
-        }
+        moveSelection(-1);
     }
 
     function toggleSelected() {
@@ -475,10 +476,6 @@ PluginComponent {
         ToastService.showInfo(I18n.tr("Refreshing Home Assistant entities...", "Entity refresh notification"));
     }
 
-    function getEntityIcon(entityId, domain) {
-        return customIcons[entityId] || HassConstants.getIconForDomain(domain);
-    }
-
     function setEntityIcon(entityId, iconName) {
         var icons = Object.assign({}, customIcons);
         if (iconName) {
@@ -487,9 +484,7 @@ PluginComponent {
             delete icons[entityId];
         }
         customIcons = icons;
-        if (pluginService) {
-            pluginService.savePluginData("homeAssistantMonitor", "customIcons", icons);
-        }
+        savePersistentUiValue("customIcons", icons);
     }
 
     function openIconPicker(entityId) {
@@ -501,14 +496,6 @@ PluginComponent {
         iconPickerEntityId = "";
         iconSearchText = "";
     }
-
-    function isSwitchable(entity) {
-        if (!entity) return false;
-        const domain = entity.domain;
-        const switchableDomains = ["switch", "light", "input_boolean", "fan", "automation", "script", "group", "climate"];
-        return switchableDomains.includes(domain);
-    }
-
 
     horizontalBarPill: StatusBarContent {
         orientation: Qt.Horizontal
@@ -538,9 +525,6 @@ PluginComponent {
         showButtonsOnStatusBar: pluginData.showButtonsOnStatusBar !== undefined ? pluginData.showButtonsOnStatusBar : true
     }
 
-    // Lazy-loaded popout content for better performance
-    property bool popoutReady: false
-    
     popoutContent: Component {
         FocusScope {
             id: popoutScope
@@ -564,9 +548,7 @@ PluginComponent {
                 target: parentPopout
                 function onShouldBeVisibleChanged() {
                     if (parentPopout && !parentPopout.shouldBeVisible) {
-                        root.collapseAllEntities();
-                        root.showEntityBrowser = false;
-                        root.entitySearchText = "";
+                        root.resetPopoutState();
                     }
                 }
             }
@@ -592,6 +574,9 @@ PluginComponent {
                 } else if (event.key === Qt.Key_R && event.modifiers & Qt.ControlModifier) {
                     root.refreshEntities();
                     event.accepted = true;
+                } else if (event.key === Qt.Key_Escape && root.iconPickerEntityId) {
+                    root.closeIconPicker();
+                    event.accepted = true;
                 }
             }
 
@@ -601,173 +586,20 @@ PluginComponent {
                 anchors.margins: Theme.spacingM
                 spacing: Theme.spacingS
 
-                Rectangle {
+                HomeAssistantOverviewPanel {
                     id: overviewPanel
                     width: contentFrame.width
-                    height: overviewContent.implicitHeight + Theme.spacingM * 2
                     anchors.horizontalCenter: parent.horizontalCenter
-                    radius: Theme.cornerRadius * 1.2
-                    color: Theme.surfaceContainerHigh || Theme.surfaceContainer
-                    border.width: 1
-                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.16)
+                    haAvailable: globalHaAvailable.value
+                    connectionStatus: globalConnectionStatus.value
+                    connectionMessage: globalConnectionMessage.value
+                    isEditing: root.isEditing
+                    showEntityBrowser: root.showEntityBrowser
+                    manualRefreshInProgress: root.manualRefreshInProgress
 
-                    readonly property color statusColor: {
-                        if (globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline") return Theme.error;
-                        if (globalConnectionStatus.value === "connecting" || globalConnectionStatus.value === "degraded") return Theme.warning;
-                        if (!globalHaAvailable.value) return Theme.error;
-                        return Theme.primary;
-                    }
-
-                    readonly property string titleText: {
-                        if (globalConnectionStatus.value === "auth_error") return I18n.tr("Home Assistant authentication failed", "Home Assistant connection error");
-                        if (globalConnectionStatus.value === "connecting") return I18n.tr("Connecting to Home Assistant", "Home Assistant status");
-                        if (globalConnectionStatus.value === "degraded") return I18n.tr("Home Assistant connection degraded", "Home Assistant status");
-                        if (!globalHaAvailable.value) return I18n.tr("Home Assistant unavailable", "Home Assistant connection error");
-                        return I18n.tr("Home Assistant", "Home Assistant dashboard title");
-                    }
-
-                    readonly property string subtitleText: {
-                        if (globalConnectionStatus.value === "auth_error") {
-                            return I18n.tr("Update the token in settings to restore entity updates.", "Home Assistant auth subtitle");
-                        }
-                        if (globalConnectionStatus.value === "connecting") {
-                            return I18n.tr("Authenticating and loading your monitored entities.", "Home Assistant connecting subtitle");
-                        }
-                        if (globalConnectionStatus.value === "degraded") {
-                            return I18n.tr("The server is reachable, but syncs are taking longer than expected.", "Home Assistant degraded subtitle");
-                        }
-                        if (!globalHaAvailable.value) {
-                            return I18n.tr("Review your URL and access token if the dashboard stays offline.", "Home Assistant offline subtitle");
-                        }
-                        return "";
-                    }
-
-                    Column {
-                        id: overviewContent
-                        anchors.fill: parent
-                        anchors.margins: Theme.spacingM
-                        spacing: 0
-
-                        Row {
-                            width: parent.width
-                            height: Math.max(34, titleBlock.implicitHeight, actionButtons.implicitHeight)
-                            spacing: Theme.spacingM
-
-                            Rectangle {
-                                width: 34
-                                height: 34
-                                radius: 17
-                                anchors.verticalCenter: parent.verticalCenter
-                                color: Qt.rgba(overviewPanel.statusColor.r, overviewPanel.statusColor.g, overviewPanel.statusColor.b, 0.12)
-
-                                DankIcon {
-                                    anchors.centerIn: parent
-                                    name: globalConnectionStatus.value === "connecting" ? "sync"
-                                          : (globalConnectionStatus.value === "degraded" ? "warning"
-                                          : (globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline" ? "error" : "home"))
-                                    size: 18
-                                    color: overviewPanel.statusColor
-                                }
-                            }
-
-                            Column {
-                                id: titleBlock
-                                width: parent.width - actionButtons.implicitWidth - 34 - Theme.spacingM * 2
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 2
-
-                                StyledText {
-                                    text: overviewPanel.titleText
-                                    font.pixelSize: Theme.fontSizeMedium
-                                    font.weight: Font.Medium
-                                    color: Theme.surfaceText
-                                    width: parent.width
-                                    elide: Text.ElideRight
-                                    wrapMode: Text.NoWrap
-                                }
-
-                                StyledText {
-                                    text: overviewPanel.subtitleText
-                                    visible: text.length > 0
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    color: Theme.surfaceVariantText
-                                    width: parent.width
-                                    elide: Text.ElideRight
-                                    wrapMode: Text.NoWrap
-                                }
-                            }
-
-                            Row {
-                                id: actionButtons
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: Theme.spacingXS
-
-                                PanelActionButton {
-                                    iconName: root.isEditing ? "check" : "edit"
-                                    active: root.isEditing
-                                    onClicked: root.isEditing = !root.isEditing
-                                }
-
-                                BrowseEntitiesButton {
-                                    isActive: root.showEntityBrowser
-                                    onClicked: {
-                                        root.showEntityBrowser = !root.showEntityBrowser;
-                                        if (!root.showEntityBrowser) {
-                                            root.entitySearchText = "";
-                                        }
-                                    }
-                                }
-
-                                RefreshButton {
-                                    spinning: root.manualRefreshInProgress
-                                    onClicked: root.refreshEntities()
-                                }
-                            }
-                        }
-
-                    }
-                }
-
-                Rectangle {
-                    id: connectionBanner
-                    width: contentFrame.width
-                    height: visible ? 32 : 0
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    visible: ["connecting", "degraded", "offline", "auth_error"].indexOf(globalConnectionStatus.value) >= 0
-                    radius: Theme.cornerRadius
-                    color: globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline"
-                        ? Qt.rgba(Theme.error.r, Theme.error.g, Theme.error.b, 0.12)
-                        : Qt.rgba(Theme.warning.r, Theme.warning.g, Theme.warning.b, 0.12)
-
-                    Row {
-                        anchors.fill: parent
-                        anchors.leftMargin: Theme.spacingM
-                        anchors.rightMargin: Theme.spacingM
-                        spacing: Theme.spacingS
-
-                        DankIcon {
-                            name: globalConnectionStatus.value === "connecting" ? "sync"
-                                  : (globalConnectionStatus.value === "degraded" ? "warning" : "error")
-                            size: 16
-                            color: globalConnectionStatus.value === "auth_error" || globalConnectionStatus.value === "offline" ? Theme.error : Theme.warning
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-
-                        StyledText {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: parent.width - 24
-                            font.pixelSize: Theme.fontSizeSmall
-                            color: Theme.surfaceText
-                            elide: Text.ElideRight
-                            text: {
-                                if (globalConnectionMessage.value) return globalConnectionMessage.value;
-                                if (globalConnectionStatus.value === "connecting") return I18n.tr("Connecting to Home Assistant", "Connection banner");
-                                if (globalConnectionStatus.value === "degraded") return I18n.tr("Home Assistant connection is unstable", "Connection banner");
-                                if (globalConnectionStatus.value === "auth_error") return I18n.tr("Home Assistant authentication failed", "Connection banner");
-                                return I18n.tr("Home Assistant is offline", "Connection banner");
-                            }
-                        }
-                    }
+                    onRequestToggleEditing: root.isEditing = !root.isEditing
+                    onRequestToggleBrowser: root.toggleEntityBrowser()
+                    onRequestRefresh: root.refreshEntities()
                 }
 
                 Item {
@@ -775,7 +607,7 @@ PluginComponent {
                     width: root.showEntityBrowser
                         ? root.browserColumnWidth + Theme.spacingS + root.rightColumnWidth
                         : root.compactContentWidth
-                    height: parent.height - overviewPanel.height - (connectionBanner.visible ? connectionBanner.height : 0) - Theme.spacingS - (connectionBanner.visible ? Theme.spacingS : 0)
+                    height: parent.height - overviewPanel.height - Theme.spacingS
                     anchors.horizontalCenter: parent.horizontalCenter
 
                     Row {
@@ -788,222 +620,66 @@ PluginComponent {
                             height: parent.height
                             visible: root.showEntityBrowser
 
-                            Rectangle {
+                            HomeAssistantBrowserPane {
                                 anchors.fill: parent
-                                radius: Theme.cornerRadius * 1.2
-                                color: Theme.surfaceContainerLow || Theme.surfaceContainer
-                                border.width: 1
-                                border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.14)
+                                visiblePane: root.showEntityBrowser
+                                contentReady: popoutScope.contentReady
+                                browseMode: root.browseMode
+                                searchText: root.entitySearchText
+                                deviceModel: root.entityDevices
+                                domainModel: root.entityDomains
+                                monitoredEntityIds: root.monitoredEntityIds
 
-                                Column {
-                                    anchors.fill: parent
-                                    anchors.margins: Theme.spacingM
-                                    spacing: Theme.spacingS
-
-                                    StyledText {
-                                        id: browserSectionTitle
-                                        text: I18n.tr("Entity browser", "Home Assistant browser module title")
-                                        font.pixelSize: Theme.fontSizeSmall
-                                        font.weight: Font.Medium
-                                        color: Theme.surfaceVariantText
-                                    }
-
-                                    EntityBrowser {
-                                        id: entityBrowser
-                                        width: parent.width
-                                        height: parent.height - browserSectionTitle.height - Theme.spacingS
-                                        isOpen: true
-                                        browseMode: root.browseMode
-                                        searchText: root.entitySearchText
-                                        deviceModel: root.entityDevices
-                                        domainModel: root.entityDomains
-                                        contentReady: popoutScope.contentReady
-                                        monitoredEntityIds: {
-                                            var list = globalEntities.value || [];
-                                            return list.map(e => e.entityId);
-                                        }
-
-                                        onRequestToggleMonitor: (entityId) => root.toggleMonitorEntity(entityId)
-                                        onRequestBrowseModeChange: (mode) => root.browseMode = mode
-                                        onRequestSearchTextChange: (text) => root.entitySearchText = text
-                                    }
-                                }
+                                onRequestToggleMonitor: entityId => root.toggleMonitorEntity(entityId)
+                                onRequestBrowseModeChange: mode => root.browseMode = mode
+                                onRequestSearchTextChange: text => root.entitySearchText = text
                             }
                         }
 
-                        Column {
+                        HomeAssistantEntityListPane {
                             id: rightColumn
                             width: root.rightColumnWidth
                             height: parent.height
-                            spacing: Theme.spacingS
+                            entities: globalEntities.value || []
+                            haAvailable: !!globalHaAvailable.value
+                            globalEntityCount: globalEntityCount.value !== undefined ? globalEntityCount.value : 0
+                            connectionStatus: globalConnectionStatus.value || "offline"
+                            connectionMessage: globalConnectionMessage.value || ""
+                            contentReady: popoutScope.contentReady
+                            isEditing: root.isEditing
+                            keyboardNavigationActive: root.keyboardNavigationActive
+                            selectedEntityId: root.selectedEntityId
+                            pinnedEntityIds: root.pinnedEntities
+                            expandedEntities: root.expandedEntities
+                            showEntityDetails: root.showEntityDetails
+                            showAttributes: root.showAttributes
+                            customIcons: root.customIcons
 
-                            EmptyState {
-                                width: parent.width
-                                height: Math.max(260, rightColumn.height)
-                                visible: globalEntities.value.length === 0
-                                haAvailable: globalHaAvailable.value
-                                connectionStatus: globalConnectionStatus.value
-                                connectionMessage: globalConnectionMessage.value
-                                entityCount: globalEntityCount.value
-                            }
-
-                            ListView {
-                                id: entityList
-                                width: parent.width
-                                height: rightColumn.height
-                                visible: globalEntities.value.length > 0
-                                spacing: Theme.spacingS
-                                clip: true
-                                cacheBuffer: 180
-                                boundsBehavior: Flickable.StopAtBounds
-                                model: {
-                                    const entityCount = popoutScope.contentReady ? monitoredListModel.count : 0;
-                                    const hasShortcuts = HomeAssistantService.shortcutsModel.count > 0 || root.isEditing;
-                                    return entityCount + (hasShortcuts ? 1 : 0);
-                                }
-                                currentIndex: {
-                                    const selectedIndex = globalEntities.value.findIndex(e => e.entityId === root.selectedEntityId);
-                                    if (!root.keyboardNavigationActive || selectedIndex < 0) return -1;
-                                    const hasShortcuts = HomeAssistantService.shortcutsModel.count > 0 || root.isEditing;
-                                    return hasShortcuts ? selectedIndex + 1 : selectedIndex;
-                                }
-
-                                move: Transition {
-                                    NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
-                                }
-                                moveDisplaced: Transition {
-                                    NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
-                                }
-                                add: Transition {
-                                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
-                                    NumberAnimation { property: "scale"; from: 0.9; to: 1; duration: 200 }
-                                }
-                                displaced: Transition {
-                                    NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
-                                }
-
-                                Component.onCompleted: {
-                                    root.entityListView = entityList;
-                                }
-
-                                onVisibleChanged: {
-                                    if (visible) {
-                                        root.entityListView = entityList;
-                                    }
-                                }
-
-                                delegate: Item {
-                                    required property int index
-
-                                    readonly property bool hasShortcuts: HomeAssistantService.shortcutsModel.count > 0 || root.isEditing
-                                    readonly property bool isShortcutRow: hasShortcuts && index === 0
-                                    readonly property int entityIndex: hasShortcuts ? index - 1 : index
-                                    readonly property var rowEntityData: !isShortcutRow && entityIndex >= 0 && entityIndex < monitoredListModel.count
-                                        ? monitoredListModel.get(entityIndex)
-                                        : null
-
-                                    width: entityList.width
-                                    height: isShortcutRow ? shortcutsRow.contentHeight : entityCardDelegate.height
-
-                                    ShortcutsGrid {
-                                        id: shortcutsRow
-                                        width: parent.width
-                                        visible: parent.isShortcutRow
-                                        isEditing: root.isEditing
-                                    }
-
-                                    EntityCard {
-                                        id: entityCardDelegate
-                                        visible: !parent.isShortcutRow && !!parent.rowEntityData
-                                        width: parent.width
-                                        entityData: parent.rowEntityData
-                                        isExpanded: rowEntityData ? (root.expandedEntities[rowEntityData.entityId] || false) : false
-                                        isCurrentItem: rowEntityData ? (root.keyboardNavigationActive && root.selectedEntityId === rowEntityData.entityId) : false
-                                        isPinned: rowEntityData ? root.isPinned(rowEntityData.entityId) : false
-                                        detailsExpanded: rowEntityData ? (root.showEntityDetails[rowEntityData.entityId] || false) : false
-                                        showAttributes: root.showAttributes
-                                        customIcons: root.customIcons
-                                        isEditing: root.isEditing
-
-                                        onToggleExpand: if (rowEntityData) root.toggleEntity(rowEntityData.entityId)
-                                        onTogglePin: if (rowEntityData) root.togglePinEntity(rowEntityData.entityId)
-                                        onToggleDetails: if (rowEntityData) root.toggleEntityDetails(rowEntityData.entityId)
-                                        onRemoveEntity: if (rowEntityData) {
-                                            HomeAssistantService.removeEntityFromMonitor(rowEntityData.entityId);
-                                            ToastService.showInfo(I18n.tr("Entity removed from monitoring", "Entity monitoring notification"));
-                                        }
-                                        onOpenIconPicker: if (rowEntityData) root.openIconPicker(rowEntityData.entityId)
-                                    }
-                                }
-
-                                footer: Item {
-                                    width: 1
-                                    height: Theme.spacingS
-                                }
-                            }
+                            onRequestListView: listView => root.entityListView = listView
+                            onRequestToggleExpand: entityId => root.toggleEntity(entityId)
+                            onRequestTogglePin: entityId => root.togglePinEntity(entityId)
+                            onRequestToggleDetails: entityId => root.toggleEntityDetails(entityId)
+                            onRequestRemoveEntity: entityId => HomeAssistantService.removeEntityFromMonitor(entityId)
+                            onRequestOpenIconPicker: entityId => root.openIconPicker(entityId)
                         }
                     }
                 }
             }
 
-            // Dependency Error Overlay
-            Rectangle {
-                anchors.fill: parent
-                z: 999
-                color: Theme.surface
-                visible: HomeAssistantService.missingDependency
-
-                ColumnLayout {
-                    anchors.centerIn: parent
-                    spacing: Theme.spacingM
-
-                    DankIcon {
-                        name: "error"
-                        size: 48
-                        color: Theme.error
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-
-                    StyledText {
-                        text: I18n.tr("Missing Dependency", "Error title")
-                        font.pixelSize: Theme.fontSizeLarge
-                        font.weight: Font.Bold
-                        color: Theme.error
-                        Layout.alignment: Qt.AlignHCenter
-                    }
-
-                    StyledText {
-                        text: I18n.tr("Please install 'qt6-websockets' package and then RESTART DMS to use this plugin.", "Error description")
-                        font.pixelSize: Theme.fontSizeMedium
-                        color: Theme.surfaceText
-                        Layout.alignment: Qt.AlignHCenter
-                        horizontalAlignment: Text.AlignHCenter
-                        Layout.maximumWidth: parent.width - Theme.spacingXL * 2
-                        wrapMode: Text.WordWrap
-                    }
-                }
+            HomeAssistantDependencyOverlay {
+                missingDependency: HomeAssistantService.missingDependency
             }
 
-            // Icon Picker Overlay
-            IconPicker {
-                id: iconPickerOverlay
-                anchors.fill: parent
-                z: 100
+            HomeAssistantIconPickerOverlay {
                 entityId: root.iconPickerEntityId
                 searchText: root.iconSearchText
                 customIcons: root.customIcons
-                commonIcons: HassConstants.commonIcons
+                availableIcons: HassConstants.commonIcons
 
                 onSearchTextChanged: root.iconSearchText = searchText
-                onIconSelected: iconName => {
-                    root.setEntityIcon(root.iconPickerEntityId, iconName);
-                    root.closeIconPicker();
-                }
-                onResetIcon: {
-                    root.setEntityIcon(root.iconPickerEntityId, null);
-                    root.closeIconPicker();
-                }
-                onClose: root.closeIconPicker()
+                onRequestSetIcon: (entityId, iconName) => root.setEntityIcon(entityId, iconName)
+                onRequestResetIcon: entityId => root.setEntityIcon(entityId, null)
+                onRequestClose: root.closeIconPicker()
             }
         }
     }

@@ -38,9 +38,99 @@ Singleton {
     // Entity Overrides (Friendly Name)
     property var entityOverrides: ({})
 
+    function loadPersistentPluginValue(key, fallbackValue) {
+        if (PluginService.loadPluginState) {
+            const stateValue = PluginService.loadPluginState(pluginId, key, undefined);
+            if (stateValue !== undefined) {
+                return stateValue;
+            }
+        }
+
+        const dataValue = PluginService.loadPluginData(pluginId, key, undefined);
+        return dataValue !== undefined ? dataValue : fallbackValue;
+    }
+
+    function savePersistentPluginValue(key, value) {
+        if (PluginService.savePluginState) {
+            PluginService.savePluginState(pluginId, key, value);
+            return;
+        }
+        PluginService.savePluginData(pluginId, key, value);
+    }
+
     function loadEntityOverrides() {
-        var data = PluginService.loadPluginData(pluginId, "entityOverrides");
+        var data = loadPersistentPluginValue("entityOverrides", {});
         entityOverrides = data || {};
+    }
+
+    function findCachedEntityIndex(entityId) {
+        if (!cachedAllEntities) return -1;
+        for (let i = 0; i < cachedAllEntities.length; i++) {
+            if (cachedAllEntities[i].entityId === entityId) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    function getCachedEntity(entityId) {
+        const index = findCachedEntityIndex(entityId);
+        return index >= 0 ? cachedAllEntities[index] : null;
+    }
+
+    function upsertCachedEntity(entity) {
+        if (!entity) return;
+        const nextEntities = Array.from(cachedAllEntities || []);
+        const index = findCachedEntityIndex(entity.entityId);
+        if (index >= 0) {
+            nextEntities[index] = entity;
+        } else {
+            nextEntities.push(entity);
+        }
+        cachedAllEntities = nextEntities;
+    }
+
+    function applyOptimisticState(entity) {
+        if (!entity) return null;
+        const overrides = optimisticStates[entity.entityId];
+        if (!overrides) return entity;
+
+        const nextEntity = Object.assign({}, entity);
+        for (const key in overrides) {
+            if (key === "state") {
+                nextEntity.state = overrides[key];
+            } else {
+                nextEntity.attributes = Object.assign({}, nextEntity.attributes || {});
+                nextEntity.attributes[key] = overrides[key];
+            }
+        }
+        return nextEntity;
+    }
+
+    function buildEntityMap(entities) {
+        const entityMap = {};
+        for (const entity of entities || []) {
+            entityMap[entity.entityId] = entity;
+        }
+        return entityMap;
+    }
+
+    function buildMonitoredEntities(entityIdsList, entityMap) {
+        const monitoredEntities = [];
+        for (const id of entityIdsList) {
+            if (entityMap[id]) {
+                monitoredEntities.push(applyOptimisticState(entityMap[id]));
+            }
+        }
+        return monitoredEntities;
+    }
+
+    function persistMonitoredEntityIds() {
+        if (PluginService.savePluginState) {
+            PluginService.savePluginState(pluginId, "entityIds", entityIds);
+        } else {
+            PluginService.savePluginData(pluginId, "entityIds", entityIds);
+        }
     }
 
     function renameEntity(entityId, newName) {
@@ -51,20 +141,15 @@ Singleton {
             delete overrides[entityId];
         }
         entityOverrides = overrides;
-        PluginService.savePluginData(pluginId, "entityOverrides", overrides);
+        savePersistentPluginValue("entityOverrides", overrides);
 
         // Update cached entity immediately
         if (cachedAllEntities) {
-            var newCached = Array.from(cachedAllEntities);
-            for (var i = 0; i < newCached.length; i++) {
-                if (newCached[i].entityId === entityId) {
-                    // Create a new object to ensure property changes are detected
-                    newCached[i] = Object.assign({}, newCached[i], { friendlyName: newName });
-                    break;
-                }
+            const cachedEntity = getCachedEntity(entityId);
+            if (cachedEntity) {
+                upsertCachedEntity(Object.assign({}, cachedEntity, { friendlyName: newName }));
             }
-            cachedAllEntities = newCached;
-            PluginService.setGlobalVar(pluginId, "allEntities", newCached);
+            PluginService.setGlobalVar(pluginId, "allEntities", cachedAllEntities);
             reprocessMonitoredEntities(); // This pushes changes to global "entities" var
         }
         
@@ -354,12 +439,18 @@ Singleton {
             const val = PluginService.loadPluginData(pluginId, key);
             return val !== undefined ? val : defaultValue;
         }
+        const loadState = (key, defaultValue) => {
+            if (PluginService.loadPluginState) {
+                return PluginService.loadPluginState(pluginId, key, defaultValue);
+            }
+            return defaultValue;
+        }
 
         hassUrl = load("hassUrl", "http://homeassistant.local:8123");
         _tokenFromSettings = load("hassToken", "").toString().trim();
         hassTokenPath = load("hassTokenPath", "").toString().trim();
         
-        entityIds = load("entityIds", "");
+        entityIds = loadState("entityIds", load("entityIds", ""));
         refreshInterval = load("refreshInterval", 3);
         showAttributes = load("showAttributes", false);
 
@@ -390,7 +481,7 @@ Singleton {
     property alias shortcutsModel: shortcutsListModel
 
     function loadShortcuts() {
-        var data = PluginService.loadPluginData(pluginId, "shortcuts");
+        var data = loadPersistentPluginValue("shortcuts", []);
         shortcuts = data || [];
         _syncShortcutsModel();
     }
@@ -422,7 +513,7 @@ Singleton {
             "name": newItem.name,
             "domain": newItem.domain
         });
-        PluginService.savePluginData(pluginId, "shortcuts", list);
+        savePersistentPluginValue("shortcuts", list);
     }
 
     function removeShortcut(entityId) {
@@ -437,7 +528,7 @@ Singleton {
             }
         }
         
-        PluginService.savePluginData(pluginId, "shortcuts", list);
+        savePersistentPluginValue("shortcuts", list);
     }
 
     function renameShortcut(entityId, newName) {
@@ -458,7 +549,7 @@ Singleton {
             }
         }
 
-        PluginService.savePluginData(pluginId, "shortcuts", list);
+        savePersistentPluginValue("shortcuts", list);
     }
 
     function moveShortcut(fromIndex, toIndex) {
@@ -472,7 +563,7 @@ Singleton {
 
         shortcutsListModel.move(fromIndex, toIndex, 1);
 
-        PluginService.savePluginData(pluginId, "shortcuts", list);
+        savePersistentPluginValue("shortcuts", list);
     }
 
     function isShortcut(entityId) {
@@ -513,6 +604,16 @@ Singleton {
         running: (!socket || socket.status !== root.wsOpen) && root.isConfigured
         repeat: true
         onTriggered: fetchEntities()
+    }
+
+    property var monitoredEntitiesSyncTimer: Timer {
+        interval: 16
+        running: false
+        repeat: false
+        onTriggered: {
+            persistMonitoredEntityIds();
+            reprocessMonitoredEntities();
+        }
     }
 
     onRefreshIntervalChanged: {
@@ -633,50 +734,17 @@ Singleton {
          const parsedEntityIds = parseEntityIds();
 
          const allEntities = [];
-         const entityMap = {};
 
          for (const entity of allStates) {
              const mapped = mapEntity(entity);
              if (mapped) {
                  allEntities.push(mapped);
-                 entityMap[mapped.entityId] = mapped;
              }
          }
 
          cachedAllEntities = allEntities;
          PluginService.setGlobalVar(pluginId, "allEntities", allEntities);
-
-         // Build monitored list in order with optimistic states applied
-         const monitoredEntities = [];
-         for (const id of parsedEntityIds) {
-             if (entityMap[id]) {
-                 let entity = entityMap[id];
-
-                 // Apply optimistic state overrides if present
-                 const entityOptimisticStates = optimisticStates[id];
-                 if (entityOptimisticStates) {
-                     // Create a shallow copy to avoid mutating cached entity
-                     entity = Object.assign({}, entity);
-
-                     // Apply state override
-                     if (entityOptimisticStates.state !== undefined) {
-                         entity.state = entityOptimisticStates.state;
-                     }
-
-                     // Apply attribute overrides
-                     if (Object.keys(entityOptimisticStates).length > 1) {
-                         entity.attributes = Object.assign({}, entity.attributes);
-                         for (const key in entityOptimisticStates) {
-                             if (key !== "state") {
-                                 entity.attributes[key] = entityOptimisticStates[key];
-                             }
-                         }
-                     }
-                 }
-
-                 monitoredEntities.push(entity);
-             }
-         }
+         const monitoredEntities = buildMonitoredEntities(parsedEntityIds, buildEntityMap(allEntities));
 
          const newIds = monitoredEntities.map(e => e.entityId).join(",");
          lastMonitoredIdsStr = newIds;
@@ -704,17 +772,7 @@ Singleton {
             pendingConfirmations = pending;
 
             // Store actual state in cache (not modified by optimistic state)
-            let found = false;
-            for (let i = 0; i < cachedAllEntities.length; i++) {
-                if (cachedAllEntities[i].entityId === entityId) {
-                    cachedAllEntities[i] = mapped;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                cachedAllEntities.push(mapped);
-            }
+            upsertCachedEntity(mapped);
 
             // Don't trigger batch update - wait for confirmation timer
             return;
@@ -737,18 +795,7 @@ Singleton {
         }
 
         // Store actual state in cache (not modified by optimistic state)
-        let found = false;
-        for (let i = 0; i < cachedAllEntities.length; i++) {
-            if (cachedAllEntities[i].entityId === entityId) {
-                cachedAllEntities[i] = mapped;
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            cachedAllEntities.push(mapped);
-        }
+        upsertCachedEntity(mapped);
 
         // Trigger batch update for monitored list
         batchUpdateTimer.start();
@@ -1026,51 +1073,18 @@ Singleton {
 
                     // Single iteration, process all entities and monitored entities
                     const allEntities = [];
-                    const entityMap = {};
 
                     for (const entity of allStates) {
                         const mapped = mapEntity(entity);
                         if (mapped) {
                             allEntities.push(mapped);
-                            entityMap[mapped.entityId] = mapped;
                         }
                     }
 
                     cachedAllEntities = allEntities;
 
                     PluginService.setGlobalVar(pluginId, "allEntities", allEntities);
-
-                    // Build monitored list in order with optimistic states applied
-                    const monitoredEntities = [];
-                    for (const id of parsedEntityIds) {
-                        if (entityMap[id]) {
-                            let entity = entityMap[id];
-
-                            // Apply optimistic state overrides if present
-                            const entityOptimisticStates = optimisticStates[id];
-                            if (entityOptimisticStates) {
-                                // Create a shallow copy to avoid mutating cached entity
-                                entity = Object.assign({}, entity);
-
-                                // Apply state override
-                                if (entityOptimisticStates.state !== undefined) {
-                                    entity.state = entityOptimisticStates.state;
-                                }
-
-                                // Apply attribute overrides
-                                if (Object.keys(entityOptimisticStates).length > 1) {
-                                    entity.attributes = Object.assign({}, entity.attributes);
-                                    for (const key in entityOptimisticStates) {
-                                        if (key !== "state") {
-                                            entity.attributes[key] = entityOptimisticStates[key];
-                                        }
-                                    }
-                                }
-                            }
-
-                            monitoredEntities.push(entity);
-                        }
-                    }
+                    const monitoredEntities = buildMonitoredEntities(parsedEntityIds, buildEntityMap(allEntities));
 
                     // 2. Only update the "heavy" list model if the structure changed
                     // (length changed or IDs changed)
@@ -1112,48 +1126,10 @@ Singleton {
         const parsedEntityIds = parseEntityIds();
         const monitoredEntities = [];
 
-        // Use cachedAllEntities if available
         if (cachedAllEntities && cachedAllEntities.length > 0) {
-            // Create a map for fast lookup
-            const entityMap = {};
-            for (const mapped of cachedAllEntities) {
-                entityMap[mapped.entityId] = mapped;
-            }
-
-            // Iterate ids in order and apply optimistic states
-            for (const id of parsedEntityIds) {
-                if (entityMap[id]) {
-                    let entity = entityMap[id];
-
-                    // Apply optimistic state overrides if present
-                    const entityOptimisticStates = optimisticStates[id];
-                    if (entityOptimisticStates) {
-                        // Create a shallow copy to avoid mutating cached entity
-                        entity = Object.assign({}, entity);
-
-                        // Apply state override
-                        if (entityOptimisticStates.state !== undefined) {
-                            entity.state = entityOptimisticStates.state;
-                        }
-
-                        // Apply attribute overrides
-                        if (Object.keys(entityOptimisticStates).length > 1) {
-                            entity.attributes = Object.assign({}, entity.attributes);
-                            for (const key in entityOptimisticStates) {
-                                if (key !== "state") {
-                                    entity.attributes[key] = entityOptimisticStates[key];
-                                }
-                            }
-                        }
-                    }
-
-                    monitoredEntities.push(entity);
-                }
-            }
-
+            monitoredEntities.push(...buildMonitoredEntities(parsedEntityIds, buildEntityMap(cachedAllEntities)));
             updateEntities(monitoredEntities);
         } else {
-            // Fallback if cache is empty
             refresh();
         }
     }
@@ -1164,6 +1140,10 @@ Singleton {
         PluginService.setGlobalVar(pluginId, "haAvailable", haAvailable);
         PluginService.setGlobalVar(pluginId, "haConnectionStatus", connectionStatus);
         PluginService.setGlobalVar(pluginId, "haConnectionMessage", connectionMessage);
+    }
+
+    function scheduleMonitoredEntitiesSync() {
+        monitoredEntitiesSyncTimer.restart();
     }
 
     function addEntityToMonitor(entityId) {
@@ -1183,8 +1163,7 @@ Singleton {
         
         if (addedCount > 0) {
             entityIds = ids.join(", ");
-            PluginService.savePluginData(pluginId, "entityIds", entityIds);
-            reprocessMonitoredEntities();
+            scheduleMonitoredEntitiesSync();
         }
     }
 
@@ -1194,14 +1173,13 @@ Singleton {
         if (index >= 0) {
             ids.splice(index, 1);
             entityIds = ids.join(", ");
-            PluginService.savePluginData(pluginId, "entityIds", entityIds);
 
             // Clear history cache for this entity
             const newCache = Object.assign({}, historyCache);
             delete newCache[entityId];
             historyCache = newCache;
 
-            reprocessMonitoredEntities();
+            scheduleMonitoredEntitiesSync();
         }
     }
 
@@ -1223,8 +1201,19 @@ Singleton {
         }
 
         entityIds = ids.join(", ");
-        PluginService.savePluginData(pluginId, "entityIds", entityIds);
-        reprocessMonitoredEntities();
+        scheduleMonitoredEntitiesSync();
+    }
+
+    function moveEntityToTop(entityId) {
+        let ids = parseEntityIds();
+        const index = ids.indexOf(entityId);
+        if (index <= 0) return;
+
+        const item = ids.splice(index, 1)[0];
+        ids.unshift(item);
+
+        entityIds = ids.join(", ");
+        scheduleMonitoredEntitiesSync();
     }
 
     function callService(domain, service, entityId, serviceData) {
@@ -1573,37 +1562,25 @@ Singleton {
 
     // Get the actual state from cachedAllEntities (without optimistic state)
     function getActualState(entityId) {
-        if (!cachedAllEntities) return null;
-        for (var i = 0; i < cachedAllEntities.length; i++) {
-            if (cachedAllEntities[i].entityId === entityId) {
-                return cachedAllEntities[i].state;
-            }
-        }
-        return null;
+        const entity = getCachedEntity(entityId);
+        return entity ? entity.state : null;
     }
 
     // Get complete entity data with all states applied (optimistic, pending confirmation, etc.)
     // This is the unified interface for UI components to get entity data
     function getEntityData(entityId) {
-        if (!cachedAllEntities) return null;
+        const base = getCachedEntity(entityId);
+        if (!base) return null;
 
-        for (var i = 0; i < cachedAllEntities.length; i++) {
-            if (cachedAllEntities[i].entityId === entityId) {
-                const base = cachedAllEntities[i];
-                const effectiveState = getEffectiveValue(entityId, "state", base.state);
-
-                return {
-                    entityId: base.entityId,
-                    state: effectiveState,
-                    domain: base.domain,
-                    friendlyName: base.friendlyName,
-                    unitOfMeasurement: base.unitOfMeasurement || "",
-                    attributes: base.attributes || {},
-                    lastUpdated: base.lastUpdated
-                };
-            }
-        }
-        return null;
+        return {
+            entityId: base.entityId,
+            state: getEffectiveValue(entityId, "state", base.state),
+            domain: base.domain,
+            friendlyName: base.friendlyName,
+            unitOfMeasurement: base.unitOfMeasurement || "",
+            attributes: base.attributes || {},
+            lastUpdated: base.lastUpdated
+        };
     }
 
     // Timer to check for pending confirmations that have exceeded the delay
@@ -1775,40 +1752,31 @@ Singleton {
     // Updates a single entity's state in the local cache and global vars
     // avoiding a full refresh and preventing UI jitter
     function updateEntityState(entityId, newStateStr, newAttributes) {
-        // 1. Update in cachedAllEntities
-        if (cachedAllEntities) {
-            for (let i = 0; i < cachedAllEntities.length; i++) {
-                if (cachedAllEntities[i].entityId === entityId) {
-                    let e = cachedAllEntities[i];
+        const cachedEntity = getCachedEntity(entityId);
+        if (cachedEntity) {
+            const nextEntity = Object.assign({}, cachedEntity);
+            if (newStateStr !== undefined) nextEntity.state = newStateStr;
+            if (newAttributes !== undefined) {
+                nextEntity.attributes = Object.assign({}, nextEntity.attributes, newAttributes);
+            }
+            nextEntity.lastUpdated = new Date().toISOString();
+            upsertCachedEntity(nextEntity);
 
-                    if (newStateStr !== undefined) e.state = newStateStr;
-                    if (newAttributes !== undefined) {
-                         e.attributes = Object.assign({}, e.attributes, newAttributes);
+            if (optimisticStates[entityId]) {
+                if (newStateStr !== undefined && optimisticStates[entityId]["state"] !== undefined) {
+                    if (String(optimisticStates[entityId]["state"]) === String(newStateStr)) {
+                        _clearOptimisticState(entityId, "state");
                     }
-                    e.lastUpdated = new Date().toISOString();
+                }
 
-                    // Check and clear optimistic states
-                    if (optimisticStates[entityId]) {
-                        // Check state
-                        if (newStateStr !== undefined && optimisticStates[entityId]["state"] !== undefined) {
-                            if (String(optimisticStates[entityId]["state"]) === String(newStateStr)) {
-                                _clearOptimisticState(entityId, "state");
-                            }
-                        }
-
-                        // Check attributes
-                        if (newAttributes !== undefined) {
-                            for (var key in newAttributes) {
-                                if (optimisticStates[entityId] && optimisticStates[entityId][key] !== undefined) {
-                                    if (String(optimisticStates[entityId][key]) === String(newAttributes[key])) {
-                                        _clearOptimisticState(entityId, key);
-                                    }
-                                }
+                if (newAttributes !== undefined) {
+                    for (var key in newAttributes) {
+                        if (optimisticStates[entityId] && optimisticStates[entityId][key] !== undefined) {
+                            if (String(optimisticStates[entityId][key]) === String(newAttributes[key])) {
+                                _clearOptimisticState(entityId, key);
                             }
                         }
                     }
-
-                    break;
                 }
             }
         }

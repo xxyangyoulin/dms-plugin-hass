@@ -98,6 +98,12 @@ QtObject {
         return (customIcons && customIcons[entityId]) || HassConstants.getIconForDomain(domain);
     }
 
+    function isSwitchable(entityData) {
+        if (!entityData) return false;
+        const domain = entityData.domain || "";
+        return ["switch", "light", "input_boolean", "fan", "automation", "script", "group", "climate"].includes(domain);
+    }
+
     /**
      * Format the entity state value with unit of measurement.
      * @param entityData - The entity data object

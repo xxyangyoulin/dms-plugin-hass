@@ -35,24 +35,43 @@ Item {
     Connections {
         target: HomeAssistantService
         function onEntityDataChanged(entityId) {
-            // Get the latest entity data from HomeAssistantService
             const entityData = HomeAssistantService.getEntityData(entityId);
             if (!entityData) return;
 
-            // Update the entity in the ListModel
             for (var i = 0; i < pinnedEntitiesModel.count; i++) {
-                var current = pinnedEntitiesModel.get(i);
-                if (current.entityId === entityId) {
-                    pinnedEntitiesModel.set(i, {
-                        entityId: entityData.entityId,
-                        domain: entityData.domain,
-                        state: entityData.state,
-                        friendlyName: entityData.friendlyName,
-                        unitOfMeasurement: entityData.unitOfMeasurement || "",
-                        attributes: entityData.attributes || {}
-                    });
+                if (pinnedEntitiesModel.get(i).entityId === entityId) {
+                    setPinnedEntity(i, entityData);
                     break;
                 }
+            }
+        }
+    }
+
+    function normalizeEntity(entityData) {
+        if (!entityData) return null;
+        return {
+            entityId: entityData.entityId,
+            domain: entityData.domain,
+            state: entityData.state,
+            friendlyName: entityData.friendlyName,
+            unitOfMeasurement: entityData.unitOfMeasurement || "",
+            attributes: entityData.attributes || {}
+        };
+    }
+
+    function setPinnedEntity(index, entityData) {
+        const normalized = normalizeEntity(entityData);
+        if (normalized) {
+            pinnedEntitiesModel.set(index, normalized);
+        }
+    }
+
+    function rebuildPinnedEntities(entityMap, pinnedIds) {
+        pinnedEntitiesModel.clear();
+        for (let i = 0; i < pinnedIds.length; i++) {
+            const normalized = normalizeEntity(entityMap[pinnedIds[i]]);
+            if (normalized) {
+                pinnedEntitiesModel.append(normalized);
             }
         }
     }
@@ -62,53 +81,32 @@ Item {
         const pinnedIds = pinnedEntityIds || [];
         const currentIdsStr = pinnedIds.join(",");
 
-        // Build entity map for quick lookup
         const entityMap = {};
         for (let i = 0; i < entities.length; i++) {
             const e = entities[i];
             entityMap[e.entityId] = e;
         }
 
-        // Check if structure changed
         if (currentIdsStr !== _lastPinnedIdsStr || pinnedEntitiesModel.count !== pinnedIds.length) {
             _lastPinnedIdsStr = currentIdsStr;
-            // Full rebuild
-            pinnedEntitiesModel.clear();
-            for (let i = 0; i < pinnedIds.length; i++) {
-                const id = pinnedIds[i];
-                const e = entityMap[id];
-                if (e) {
-                    pinnedEntitiesModel.append({
-                        entityId: e.entityId,
-                        domain: e.domain,
-                        state: e.state,
-                        friendlyName: e.friendlyName,
-                        unitOfMeasurement: e.unitOfMeasurement || "",
-                        attributes: e.attributes || {}
-                    });
-                }
-            }
+            rebuildPinnedEntities(entityMap, pinnedIds);
         } else {
-            // Incremental update - only update changed entities
             for (let i = 0; i < pinnedIds.length; i++) {
                 const id = pinnedIds[i];
                 const e = entityMap[id];
                 if (!e) continue;
 
-                // Get current model data
                 const current = pinnedEntitiesModel.get(i);
+                if (current.entityId !== id) {
+                    rebuildPinnedEntities(entityMap, pinnedIds);
+                    return;
+                }
 
-                // Only update if something actually changed
-                // Note: e.state already includes optimistic states from HomeAssistantService
-                if (current.state !== e.state) {
-                    pinnedEntitiesModel.set(i, {
-                        entityId: e.entityId,
-                        domain: e.domain,
-                        state: e.state,
-                        friendlyName: e.friendlyName,
-                        unitOfMeasurement: e.unitOfMeasurement || "",
-                        attributes: e.attributes || {}
-                    });
+                if (current.state !== e.state ||
+                    current.friendlyName !== e.friendlyName ||
+                    current.unitOfMeasurement !== (e.unitOfMeasurement || "") ||
+                    JSON.stringify(current.attributes || {}) !== JSON.stringify(e.attributes || {})) {
+                    setPinnedEntity(i, e);
                 }
             }
         }
@@ -118,18 +116,6 @@ Item {
 
     implicitWidth: root.orientation === Qt.Vertical ? root.barThickness : entityRow.implicitWidth
     implicitHeight: root.orientation === Qt.Vertical ? entityColumn.implicitHeight : root.barThickness
-
-    // Helper functions
-    function getEntityIcon(entityId, domain) {
-        return customIcons[entityId] || HassConstants.getIconForDomain(domain);
-    }
-
-    function isSwitchable(entity) {
-        if (!entity) return false;
-        const domain = entity.domain;
-        const switchableDomains = ["switch", "light", "input_boolean", "fan", "automation", "script", "group", "climate"];
-        return switchableDomains.includes(domain);
-    }
 
     // Horizontal Layout
     Row {
@@ -209,7 +195,7 @@ Item {
                 spacing: Theme.spacingXS
 
                 DankIcon {
-                    name: root.getEntityIcon(model.entityId, model.domain)
+                    name: EntityHelper.getEntityIcon(model, root.customIcons)
                     size: Theme.barIconSize(root.barThickness, -4)
                     color: stateColor
                     anchors.verticalCenter: parent.verticalCenter
@@ -218,7 +204,7 @@ Item {
                 Loader {
                     id: switchLoader
                     anchors.verticalCenter: parent.verticalCenter
-                    active: root.isSwitchable(model) && root.showButtonsOnStatusBar
+                    active: EntityHelper.isSwitchable(model) && root.showButtonsOnStatusBar
                     visible: active
                     sourceComponent: switchComponent
                     onLoaded: {
@@ -228,7 +214,7 @@ Item {
                 }
 
                 StyledText {
-                    visible: (!root.isSwitchable(model) || !root.showButtonsOnStatusBar) && !availabilityIssue
+                    visible: (!EntityHelper.isSwitchable(model) || !root.showButtonsOnStatusBar) && !availabilityIssue
                     text: {
                         var state = model.state;
                         return HassConstants.formatStateValue(state, model.unitOfMeasurement);
@@ -248,7 +234,7 @@ Item {
                 spacing: 2
 
                 DankIcon {
-                    name: root.getEntityIcon(model.entityId, model.domain)
+                    name: EntityHelper.getEntityIcon(model, root.customIcons)
                     size: Theme.barIconSize(root.barThickness)
                     color: stateColor
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -257,7 +243,7 @@ Item {
                 Loader {
                     id: switchLoaderVertical
                     anchors.horizontalCenter: parent.horizontalCenter
-                    active: root.isSwitchable(model) && root.showButtonsOnStatusBar
+                    active: EntityHelper.isSwitchable(model) && root.showButtonsOnStatusBar
                     visible: active
                     sourceComponent: switchComponent
                     onLoaded: {
@@ -267,7 +253,7 @@ Item {
                 }
 
                 StyledText {
-                    visible: (!root.isSwitchable(model) || !root.showButtonsOnStatusBar) && !availabilityIssue
+                    visible: (!EntityHelper.isSwitchable(model) || !root.showButtonsOnStatusBar) && !availabilityIssue
                     text: {
                         var state = model.state;
                         return HassConstants.formatStateValue(state, model.unitOfMeasurement);
