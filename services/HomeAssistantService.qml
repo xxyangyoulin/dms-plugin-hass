@@ -788,8 +788,14 @@ Singleton {
         if (hasOptimisticState) {
             const optimisticState = entityOptimisticStates.state;
             if (String(actualState) === String(optimisticState)) {
-                // Match! Clear optimistic state and use actual state
-                _clearOptimisticState(entityId, "state");
+                // Match. Update the cached entity and monitored list first so the UI
+                // never briefly falls back to the stale pre-click state.
+                upsertCachedEntity(mapped);
+                reprocessMonitoredEntities();
+                _clearOptimisticState(entityId, "state", false);
+                optimisticStateChanged(entityId, "state", optimisticState);
+                entityDataChanged(entityId);
+                return;
             }
             // Else: states don't match - keep optimistic state (will be applied later)
         }
@@ -802,10 +808,12 @@ Singleton {
     }
 
     // Helper function to clear optimistic state and emit signal
-    function _clearOptimisticState(entityId, key) {
+    function _clearOptimisticState(entityId, key, notify) {
         if (!optimisticStates[entityId] || optimisticStates[entityId][key] === undefined) {
             return;
         }
+
+        const shouldNotify = notify !== false;
 
         var states = Object.assign({}, optimisticStates);
         var timestamps = Object.assign({}, optimisticTimestamps);
@@ -822,9 +830,10 @@ Singleton {
         optimisticStates = states;
         optimisticTimestamps = timestamps;
 
-        // Emit signal to notify UI components
-        optimisticStateChanged(entityId, key, oldValue);
-        entityDataChanged(entityId);  // Unified signal
+        if (shouldNotify) {
+            optimisticStateChanged(entityId, key, oldValue);
+            entityDataChanged(entityId);  // Unified signal
+        }
     }
 
     function handleWsEntityRemoved(entityId) {

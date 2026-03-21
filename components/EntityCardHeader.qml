@@ -162,48 +162,65 @@ StyledRect {
             }
         }
 
-        Flow {
+        Item {
             width: parent.width
-            spacing: 4
+            height: 20
 
             Rectangle {
+                id: statePill
                 radius: 9
                 height: 20
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
                 color: Qt.rgba(root.stateTone.r, root.stateTone.g, root.stateTone.b, root.actionError ? 0.14 : 0.10)
                 border.width: 1
                 border.color: Qt.rgba(root.stateTone.r, root.stateTone.g, root.stateTone.b, 0.18)
-                width: Math.min(parent.width, pillRow.implicitWidth + Theme.spacingS * 2)
+                width: Math.min(parent.width, stateRow.implicitWidth + Theme.spacingS * 2)
 
                 Row {
-                    id: pillRow
+                    id: stateRow
                     anchors.left: parent.left
                     anchors.leftMargin: Theme.spacingS
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 3
 
                     StyledText {
+                        id: stateLabel
                         text: root.stateText
                         font.pixelSize: Theme.fontSizeSmall - 2
                         font.weight: Font.DemiBold
                         color: root.stateTone
                         elide: Text.ElideRight
                         maximumLineCount: 1
-                        width: Math.min(textColumn.width - Theme.spacingM * 2, implicitWidth)
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: Math.min(
+                            implicitWidth,
+                            Math.max(0, root.width - Theme.spacingS * 2 - pendingDotsContainer.width - stateRow.spacing)
+                        )
                     }
 
-                    Row {
-                        visible: root.actionPending
-                        spacing: 1
+                    Item {
+                        id: pendingDotsContainer
+                        width: root.actionPending ? pendingDotsRow.implicitWidth : 0
+                        height: 20
+                        anchors.verticalCenter: parent.verticalCenter
+                        clip: true
 
-                        Repeater {
-                            model: 3
+                        Row {
+                            id: pendingDotsRow
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: 1
 
-                            StyledText {
-                                text: "•"
-                                font.pixelSize: Theme.fontSizeSmall - 1
-                                font.weight: Font.Bold
-                                color: root.stateTone
-                                opacity: index <= root.pendingDotsPhase ? 1 : 0.3
+                            Repeater {
+                                model: 3
+
+                                StyledText {
+                                    text: "•"
+                                    font.pixelSize: Theme.fontSizeSmall - 1
+                                    font.weight: Font.Bold
+                                    color: root.stateTone
+                                    opacity: index <= root.pendingDotsPhase ? 1 : 0.3
+                                }
                             }
                         }
                     }
