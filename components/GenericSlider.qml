@@ -5,7 +5,7 @@ import qs.Widgets
 Item {
     id: root
     height: 40
-    
+
     property real value: 0
     property real minValue: 0
     property real maxValue: 100
@@ -21,27 +21,30 @@ Item {
     property bool isDragging: false
 
     onValueChanged: {
-        if (!isDragging) {
+        if (!isDragging)
             visualValue = value;
-        }
     }
 
-    signal changed(real newValue)
+    signal previewValueChanged(real newValue)
+    signal dragFinished(real newValue)
 
-    function updateValue(mouseX, width) {
+    function updateValue(mouseX, trackWidth) {
         const range = root.maxValue - root.minValue;
-        if (range <= 0) return;
-        const percent = Math.max(0, Math.min(1, mouseX / width));
+        if (range <= 0)
+            return;
+
+        const percent = Math.max(0, Math.min(1, mouseX / trackWidth));
         var rawVal = root.minValue + percent * range;
-        
-        if (root.snap) {
+
+        if (root.snap && root.step > 0)
             rawVal = Math.round(rawVal / root.step) * root.step;
-        }
-        
-        // Clamp to min/max after snapping to avoid floating point drift exceeding bounds
-        visualValue = Math.min(root.maxValue, Math.max(root.minValue, rawVal));
-        
-        root.changed(visualValue);
+
+        const nextValue = Math.min(root.maxValue, Math.max(root.minValue, rawVal));
+        if (nextValue === root.visualValue)
+            return;
+
+        root.visualValue = nextValue;
+        root.previewValueChanged(root.visualValue);
     }
 
     Row {
@@ -70,34 +73,31 @@ Item {
                 visible: root.isColorTemp
                 gradient: Gradient {
                     orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: "#a5c6ff" }
-                    GradientStop { position: 1.0; color: "#ff9300" }
+                    GradientStop { position: 0.0; color: "#ff9300" }
+                    GradientStop { position: 1.0; color: "#a5c6ff" }
                 }
             }
 
             Rectangle {
                 width: {
                     const range = root.maxValue - root.minValue;
-                    if (range <= 0) return 0;
+                    if (range <= 0)
+                        return 0;
                     return ((root.visualValue - root.minValue) / range) * parent.width;
                 }
                 height: parent.height
                 radius: 6
                 color: Theme.primary
                 visible: !root.isColorTemp
-
-                Behavior on width { 
-                    enabled: !root.isDragging
-                    NumberAnimation { duration: 150 } 
-                }
             }
 
             Rectangle {
                 x: {
                     const range = root.maxValue - root.minValue;
-                    if (range <= 0) return 0;
+                    if (range <= 0)
+                        return 0;
                     const pos = ((root.visualValue - root.minValue) / range) * parent.width;
-                    return Math.min(parent.width - width, Math.max(0, pos - width/2));
+                    return Math.min(parent.width - width, Math.max(0, pos - width / 2));
                 }
                 width: 6
                 height: 18
@@ -105,29 +105,26 @@ Item {
                 color: Theme.surfaceText
                 anchors.verticalCenter: parent.verticalCenter
                 visible: root.isColorTemp || root.isDragging
-
-                Behavior on x { 
-                    enabled: !root.isDragging
-                    NumberAnimation { duration: 150 } 
-                }
             }
 
             MouseArea {
                 anchors.fill: parent
-                anchors.margins: -10 // Increase hit area
+                anchors.margins: -10
                 cursorShape: Qt.PointingHandCursor
-                
+
                 onPressed: (mouse) => {
                     root.isDragging = true;
                     root.updateValue(mouse.x, width);
                 }
+
                 onPositionChanged: (mouse) => {
-                    if (pressed) {
+                    if (pressed)
                         root.updateValue(mouse.x, width);
-                    }
                 }
+
                 onReleased: {
                     root.isDragging = false;
+                    root.dragFinished(root.visualValue);
                 }
             }
         }
@@ -135,17 +132,19 @@ Item {
         StyledText {
             text: {
                 if (root.isDragging) {
-                    // Use optimistic visual value for text as well
-                    if (root.isColorTemp) return Math.round(root.visualValue);
-                    
+                    if (root.isColorTemp)
+                        return Math.round(root.visualValue);
+
                     if (root.showPercentage) {
                         const range = root.maxValue - root.minValue;
-                        if (range <= 0) return "0" + root.valueSuffix;
+                        if (range <= 0)
+                            return "0" + root.valueSuffix;
                         return Math.round(((root.visualValue - root.minValue) / range) * 100) + root.valueSuffix;
-                    } else {
-                        return Math.round(root.visualValue) + root.valueSuffix;
                     }
+
+                    return Math.round(root.visualValue) + root.valueSuffix;
                 }
+
                 return root.displayValue;
             }
             font.pixelSize: Theme.fontSizeMedium

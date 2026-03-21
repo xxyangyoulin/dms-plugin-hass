@@ -1,4 +1,5 @@
 singleton HomeAssistantService 1.0 ../services/HomeAssistantService.qml
+singleton EntityControlResolver 1.0 EntityControlResolver.qml
 EntityCardHeader 1.0 EntityCardHeader.qml
 EntityQuickActionButton 1.0 EntityQuickActionButton.qml
 EntityHistorySection 1.0 EntityHistorySection.qml

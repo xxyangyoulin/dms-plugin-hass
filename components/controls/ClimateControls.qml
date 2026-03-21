@@ -10,200 +10,189 @@ Column {
     id: root
 
     required property var entityData
+    property var sections: []
 
-    function getVal(attr, def) {
-        return EntityHelper.getEffectiveValue(entityData, attr, def);
+    function refreshSections() {
+        const latestEntityData = entityData && entityData.entityId
+            ? (HomeAssistantService.getEntityData(entityData.entityId) || entityData)
+            : entityData;
+        sections = EntityControlResolver.getClimateSections(latestEntityData);
     }
 
     width: parent.width
     spacing: Theme.spacingM
 
-    // Temperature Control (Circle +/-)
-    Column {
-        width: parent.width
-        spacing: Theme.spacingS
+    onEntityDataChanged: refreshSections()
+    Component.onCompleted: refreshSections()
 
-        StyledText {
-            text: I18n.tr("Temperature Control", "Control label")
-            font.pixelSize: Theme.fontSizeSmall
-            color: Theme.surfaceVariantText
+    Connections {
+        target: HomeAssistantService
+
+        function onEntityDataChanged(entityId) {
+            if (root.entityData && root.entityData.entityId === entityId)
+                root.refreshSections();
         }
+    }
 
-        Row {
-            width: parent.width
-            spacing: Theme.spacingM
+    Repeater {
+        model: root.sections
 
-            StyledRect {
-                width: 40
-                height: 40
-                radius: 20
-                color: Theme.surfaceContainerHigh
+        delegate: Loader {
+            required property var modelData
 
-                DankIcon {
-                    name: "remove"
-                    anchors.centerIn: parent
-                    color: Theme.surfaceText
+            width: root.width
+            property var section: modelData
+            onLoaded: {
+                if (item)
+                    item.section = section;
+            }
+            sourceComponent: {
+                switch (section.type) {
+                case "temperature":
+                    return temperatureSection;
+                case "hvac_modes":
+                case "fan_modes":
+                case "preset_modes":
+                case "swing_modes":
+                    return segmentedSection;
+                default:
+                    return null;
                 }
+            }
+        }
+    }
 
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        const cur = root.getVal("temperature", 20);
-                        const step = root.getVal("target_temp_step", 0.5);
-                        const next = cur - step;
-                        HomeAssistantService.setOptimisticState(entityData.entityId, "temperature", next);
-                        HomeAssistantService.setTemperature(entityData.entityId, next);
+    Component {
+        id: temperatureSection
+
+        Column {
+            property var section
+
+            width: root.width
+            spacing: Theme.spacingS
+
+            StyledText {
+                text: I18n.tr("Temperature Control", "Control label")
+                font.pixelSize: Theme.fontSizeSmall
+                color: Theme.surfaceVariantText
+            }
+
+            Row {
+                property var sectionData: parent.section
+                width: parent.width
+                spacing: Theme.spacingM
+
+                StyledRect {
+                    width: 40
+                    height: 40
+                    radius: 20
+                    color: Theme.surfaceContainerHigh
+
+                    DankIcon {
+                        name: "remove"
+                        anchors.centerIn: parent
+                        color: Theme.surfaceText
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            const next = parent.parent.sectionData.value - parent.parent.sectionData.step;
+                            HomeAssistantService.setOptimisticState(root.entityData.entityId, "temperature", next);
+                            HomeAssistantService.setTemperature(root.entityData.entityId, next);
+                        }
                     }
                 }
 
-            }
+                Column {
+                    Layout.fillWidth: true
+                    anchors.verticalCenter: parent.verticalCenter
 
-            Column {
-                Layout.fillWidth: true
-                anchors.verticalCenter: parent.verticalCenter
+                    StyledText {
+                        text: parent.parent.sectionData.value.toFixed(1) + parent.parent.sectionData.unit
+                        font.pixelSize: Theme.fontSizeLarge
+                        font.weight: Font.Bold
+                        color: Theme.primary
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
 
-                StyledText {
-                    text: root.getVal("temperature", 20).toFixed(1) + root.getVal("temperature_unit", "°C")
-                    font.pixelSize: Theme.fontSizeLarge
-                    font.weight: Font.Bold
-                    color: Theme.primary
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-
-                StyledText {
-                    visible: root.getVal("current_temperature", undefined) !== undefined
-                    text: I18n.tr("Current:", "Label") + " " + root.getVal("current_temperature", 0).toFixed(1) + root.getVal("temperature_unit", "°C")
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: Theme.surfaceVariantText
-                    anchors.horizontalCenter: parent.horizontalCenter
-                }
-
-            }
-
-            StyledRect {
-                width: 40
-                height: 40
-                radius: 20
-                color: Theme.surfaceContainerHigh
-
-                DankIcon {
-                    name: "add"
-                    anchors.centerIn: parent
-                    color: Theme.surfaceText
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: {
-                        const cur = root.getVal("temperature", 20);
-                        const step = root.getVal("target_temp_step", 0.5);
-                        const next = cur + step;
-                        HomeAssistantService.setOptimisticState(entityData.entityId, "temperature", next);
-                        HomeAssistantService.setTemperature(entityData.entityId, next);
+                    StyledText {
+                        visible: parent.parent.sectionData.currentTemperature !== undefined
+                        text: I18n.tr("Current:", "Label") + " " + parent.parent.sectionData.currentTemperature.toFixed(1) + parent.parent.sectionData.unit
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.surfaceVariantText
+                        anchors.horizontalCenter: parent.horizontalCenter
                     }
                 }
 
-            }
+                StyledRect {
+                    width: 40
+                    height: 40
+                    radius: 20
+                    color: Theme.surfaceContainerHigh
 
-        }
+                    DankIcon {
+                        name: "add"
+                        anchors.centerIn: parent
+                        color: Theme.surfaceText
+                    }
 
-    }
-
-    // HVAC Modes
-    Column {
-        width: parent.width
-        spacing: Theme.spacingS
-        visible: root.getVal("hvac_modes", []).length > 0
-
-        StyledText {
-            text: I18n.tr("Mode", "Control label")
-            font.pixelSize: Theme.fontSizeSmall
-            color: Theme.surfaceVariantText
-        }
-
-        SegmentedControl {
-            width: parent.width
-            value: root.getVal("state", "") // Climate state is the HVAC mode
-            options: root.getVal("hvac_modes", [])
-            onSelected: (v) => {
-                HomeAssistantService.setOptimisticState(entityData.entityId, "state", v);
-                HomeAssistantService.setHvacMode(entityData.entityId, v);
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: {
+                            const next = parent.parent.sectionData.value + parent.parent.sectionData.step;
+                            HomeAssistantService.setOptimisticState(root.entityData.entityId, "temperature", next);
+                            HomeAssistantService.setTemperature(root.entityData.entityId, next);
+                        }
+                    }
+                }
             }
         }
-
     }
 
-    // Fan Modes
-    Column {
-        width: parent.width
-        spacing: Theme.spacingS
-        visible: root.getVal("fan_modes", []).length > 0
+    Component {
+        id: segmentedSection
 
-        StyledText {
-            text: I18n.tr("Fan Mode", "Control label")
-            font.pixelSize: Theme.fontSizeSmall
-            color: Theme.surfaceVariantText
-        }
+        Column {
+            property var section
 
-        SegmentedControl {
-            width: parent.width
-            value: root.getVal("fan_mode", "")
-            options: root.getVal("fan_modes", [])
-            onSelected: (v) => {
-                HomeAssistantService.setOptimisticState(entityData.entityId, "fan_mode", v);
-                HomeAssistantService.setClimateFanMode(entityData.entityId, v);
+            width: root.width
+            spacing: Theme.spacingS
+
+            StyledText {
+                text: I18n.tr(section.label, "Control label")
+                font.pixelSize: Theme.fontSizeSmall
+                color: Theme.surfaceVariantText
             }
-            icon: "mode_fan"
-        }
 
-    }
-
-    // Preset Modes
-    Column {
-        width: parent.width
-        spacing: Theme.spacingS
-        visible: root.getVal("preset_modes", []).length > 0
-
-        StyledText {
-            text: I18n.tr("Preset", "Control label")
-            font.pixelSize: Theme.fontSizeSmall
-            color: Theme.surfaceVariantText
-        }
-
-        SegmentedControl {
-            width: parent.width
-            value: root.getVal("preset_mode", "")
-            options: root.getVal("preset_modes", [])
-            onSelected: (v) => {
-                HomeAssistantService.setOptimisticState(entityData.entityId, "preset_mode", v);
-                HomeAssistantService.setPresetMode(entityData.entityId, v);
+            SegmentedControl {
+                width: parent.width
+                value: parent.section.value
+                options: parent.section.options
+                icon: parent.section.icon || ""
+                onSelected: (v) => {
+                    switch (parent.section.type) {
+                    case "hvac_modes":
+                        HomeAssistantService.setOptimisticState(root.entityData.entityId, "state", v);
+                        HomeAssistantService.setHvacMode(root.entityData.entityId, v);
+                        break;
+                    case "fan_modes":
+                        HomeAssistantService.setOptimisticState(root.entityData.entityId, "fan_mode", v);
+                        HomeAssistantService.setClimateFanMode(root.entityData.entityId, v);
+                        break;
+                    case "preset_modes":
+                        HomeAssistantService.setOptimisticState(root.entityData.entityId, "preset_mode", v);
+                        HomeAssistantService.setPresetMode(root.entityData.entityId, v);
+                        break;
+                    case "swing_modes":
+                        HomeAssistantService.setOptimisticState(root.entityData.entityId, "swing_mode", v);
+                        HomeAssistantService.setOption(root.entityData.entityId, "climate", "swing_mode", v);
+                        break;
+                    default:
+                        break;
+                    }
+                }
             }
         }
-
     }
-
-    // Swing Modes
-    Column {
-        width: parent.width
-        spacing: Theme.spacingS
-        visible: root.getVal("swing_modes", []).length > 0
-
-        StyledText {
-            text: I18n.tr("Swing", "Control label")
-            font.pixelSize: Theme.fontSizeSmall
-            color: Theme.surfaceVariantText
-        }
-
-        SegmentedControl {
-            width: parent.width
-            value: root.getVal("swing_mode", "")
-            options: root.getVal("swing_modes", [])
-            onSelected: (v) => {
-                HomeAssistantService.setOptimisticState(entityData.entityId, "swing_mode", v);
-                HomeAssistantService.setOption(entityData.entityId, "climate", "swing_mode", v);
-            }
-        }
-
-    }
-
 }

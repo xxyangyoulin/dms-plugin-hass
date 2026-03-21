@@ -1384,8 +1384,19 @@ Singleton {
         callService("light", "turn_on", entityId, {brightness: Math.round(brightness)});
     }
 
-    function setColorTemp(entityId, colorTempMireds) {
-        callService("light", "turn_on", entityId, {color_temp: Math.round(colorTempMireds)});
+    function setColorTemp(entityId, colorTempValue) {
+        const cachedEntity = getCachedEntity(entityId);
+        const attrs = cachedEntity && cachedEntity.attributes ? cachedEntity.attributes : {};
+        const supportsKelvinOnly = (attrs.color_temp_kelvin !== undefined || attrs.min_color_temp_kelvin !== undefined || attrs.max_color_temp_kelvin !== undefined) &&
+            (attrs.color_temp === undefined || attrs.color_temp === null);
+
+        if (supportsKelvinOnly) {
+            callService("light", "turn_on", entityId, {color_temp_kelvin: Math.round(colorTempValue)});
+            return;
+        }
+
+        const mireds = Math.round(1000000 / Math.max(1, colorTempValue));
+        callService("light", "turn_on", entityId, {color_temp: mireds});
     }
 
     function setLightEffect(entityId, effect) {

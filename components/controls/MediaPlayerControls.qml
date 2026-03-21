@@ -193,7 +193,7 @@ Column {
                 maxValue: 1.0
                 step: 0.01
                 icon: "" // No icon inside slider
-                onChanged: (v) => {
+                onDragFinished: (v) => {
                     HomeAssistantService.setOptimisticState(entityData.entityId, "volume_level", v);
                     HomeAssistantService.callService("media_player", "volume_set", entityData.entityId, {volume_level: v});
                 }
