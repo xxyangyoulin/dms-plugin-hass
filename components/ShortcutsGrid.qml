@@ -23,22 +23,8 @@ Column {
         width: 1
         height: Theme.spacingXS
     }
-    property string selectedShortcutId: ""
-    
-    // Signals
-    signal requestSelect(string id)
-    signal requestEdit(string id)
-    signal requestDelete(string id)
-    
     visible: HomeAssistantService.shortcutsModel.count > 0 || isEditing
     spacing: Theme.spacingXS
-    
-    onIsEditingChanged: {
-        if (!isEditing) selectedShortcutId = "";
-    }
-    
-    // Internal shortcut selection state handling
-    // We need to support keyboard navigation which was previously in the parent
 
     GridLayout {
         id: shortcutsGrid
@@ -53,45 +39,6 @@ Column {
             if (availableWidth >= minWidth * 3) return 3;
             if (availableWidth >= minWidth * 2) return 2;
             return 1;
-        }
-
-        focus: true
-        Keys.enabled: shortcutsGridRoot.isEditing && shortcutsGridRoot.selectedShortcutId !== ""
-
-        Keys.onUpPressed: {
-            if (shortcutsGridRoot.selectedShortcutId === "") return;
-
-            var currentIndex = -1;
-            for (var i = 0; i < HomeAssistantService.shortcutsModel.count; i++) {
-                if (HomeAssistantService.shortcutsModel.get(i).entityId === shortcutsGridRoot.selectedShortcutId) {
-                    currentIndex = i;
-                    break;
-                }
-            }
-
-            if (currentIndex > 0) {
-                HomeAssistantService.moveShortcut(currentIndex, currentIndex - 1);
-            }
-        }
-
-        Keys.onDownPressed: {
-            if (shortcutsGridRoot.selectedShortcutId === "") return;
-
-            var currentIndex = -1;
-            for (var i = 0; i < HomeAssistantService.shortcutsModel.count; i++) {
-                if (HomeAssistantService.shortcutsModel.get(i).entityId === shortcutsGridRoot.selectedShortcutId) {
-                    currentIndex = i;
-                    break;
-                }
-            }
-
-            if (currentIndex >= 0 && currentIndex < HomeAssistantService.shortcutsModel.count - 1) {
-                HomeAssistantService.moveShortcut(currentIndex, currentIndex + 1);
-            }
-        }
-
-        Keys.onEscapePressed: {
-            shortcutsGridRoot.selectedShortcutId = "";
         }
 
         Repeater {
@@ -110,26 +57,13 @@ Column {
                 })
 
                 isEditing: shortcutsGridRoot.isEditing
-                isSelected: shortcutsGridRoot.selectedShortcutId === entityId
 
                 Layout.fillWidth: true
                 Layout.minimumWidth: 100
 
                 onLongPressed: shortcutsGridRoot.isEditing = true
 
-                onRequestSelect: {
-                    shortcutsGridRoot.selectedShortcutId = entityId;
-                    shortcutsGrid.forceActiveFocus();
-                }
-
-                onRequestEdit: {
-                    shortcutsGridRoot.selectedShortcutId = entityId;
-                    shortcutsGridRoot.isEditing = true;
-                }
-
                 onRequestDelete: {
-                    // Clear selection first to avoid accessing context after removal
-                    shortcutsGridRoot.selectedShortcutId = "";
                     HomeAssistantService.removeShortcut(entityId);
                 }
 

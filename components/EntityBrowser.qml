@@ -10,10 +10,10 @@ Rectangle {
     id: root
 
     property bool isOpen: false
-    property string browseMode: "device"
+    property string browseMode: "more_info"
     property string searchText: ""
     property var deviceModel: []
-    property var domainModel: []
+    property var moreInfoModel: []
     property bool contentReady: false
     readonly property int browserHeaderHeight: 44
 
@@ -41,6 +41,23 @@ Rectangle {
 
     function isEntityMonitored(entityId) {
         return monitoredEntityIds.indexOf(entityId) >= 0;
+    }
+
+    function currentModel() {
+        switch (browseMode) {
+        case "device":
+            return deviceModel;
+        case "more_info":
+            return moreInfoModel;
+        default:
+            return moreInfoModel;
+        }
+    }
+
+    function currentGroupTitle(group) {
+        if (browseMode === "device")
+            return group.name;
+        return (group.name || "").toUpperCase();
     }
 
     width: parent.width
@@ -154,6 +171,34 @@ Rectangle {
                         width: (parent.width - parent.spacing) / 2
                         height: parent.height
                         radius: Theme.cornerRadius * 0.8
+                        color: root.browseMode === "more_info"
+                            ? Theme.primaryContainer
+                            : "transparent"
+                        border.width: root.browseMode === "more_info" ? 0 : 1
+                        border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.10)
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            DankIcon {
+                                name: "tune"
+                                size: 16
+                                color: root.browseMode === "more_info" ? Theme.primary : Theme.surfaceText
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.requestBrowseModeChange("more_info")
+                        }
+                    }
+
+                    Rectangle {
+                        width: (parent.width - parent.spacing) / 2
+                        height: parent.height
+                        radius: Theme.cornerRadius * 0.8
                         color: root.browseMode === "device"
                             ? Theme.primaryContainer
                             : "transparent"
@@ -177,34 +222,6 @@ Rectangle {
                             onClicked: root.requestBrowseModeChange("device")
                         }
                     }
-
-                    Rectangle {
-                        width: (parent.width - parent.spacing) / 2
-                        height: parent.height
-                        radius: Theme.cornerRadius * 0.8
-                        color: root.browseMode === "domain"
-                            ? Theme.primaryContainer
-                            : "transparent"
-                        border.width: root.browseMode === "domain" ? 0 : 1
-                        border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.10)
-
-                        Row {
-                            anchors.centerIn: parent
-                            spacing: 4
-
-                            DankIcon {
-                                name: "category"
-                                size: 16
-                                color: root.browseMode === "domain" ? Theme.primary : Theme.surfaceText
-                            }
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: root.requestBrowseModeChange("domain")
-                        }
-                    }
                 }
             }
         }
@@ -216,7 +233,7 @@ Rectangle {
             spacing: Theme.spacingS
             clip: true
             cacheBuffer: 200  // Pre-render items slightly outside viewport
-            model: root.contentReady ? (root.browseMode === "device" ? root.deviceModel : root.domainModel) : []
+            model: root.contentReady ? root.currentModel() : []
 
             delegate: Column {
                 id: groupColumn
@@ -263,21 +280,6 @@ Rectangle {
                                 color: Theme.primary
                                 anchors.verticalCenter: parent.verticalCenter
                             }
-
-                            Rectangle {
-                                width: 24
-                                height: 24
-                                radius: 12
-                                color: Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.12)
-                                anchors.verticalCenter: parent.verticalCenter
-
-                                DankIcon {
-                                    anchors.centerIn: parent
-                                    name: root.browseMode === "device" ? "devices" : "category"
-                                    size: 14
-                                    color: Theme.primary
-                                }
-                            }
                         }
 
                         Rectangle {
@@ -305,7 +307,7 @@ Rectangle {
                             anchors.right: countBadge.left
                             anchors.rightMargin: Theme.spacingS
                             anchors.verticalCenter: parent.verticalCenter
-                            text: root.browseMode === "device" ? modelData.name : modelData.name.toUpperCase()
+                            text: root.currentGroupTitle(modelData)
                             font.pixelSize: Theme.fontSizeSmall + 1
                             font.weight: Font.DemiBold
                             color: Theme.surfaceText

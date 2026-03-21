@@ -10,7 +10,7 @@ Item {
     required property string browseMode
     required property string searchText
     required property var deviceModel
-    required property var domainModel
+    required property var moreInfoModel
     required property var monitoredEntityIds
 
     signal requestToggleMonitor(string entityId)
@@ -38,7 +38,7 @@ Item {
                 browseMode: root.browseMode
                 searchText: root.searchText
                 deviceModel: root.deviceModel
-                domainModel: root.domainModel
+                moreInfoModel: root.moreInfoModel
                 contentReady: root.contentReady
                 monitoredEntityIds: root.monitoredEntityIds
 

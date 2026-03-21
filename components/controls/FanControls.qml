@@ -166,7 +166,7 @@ Column {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: {
-                        const next = !parent.parent.sectionData.value;
+                        const next = !parent.sectionData.value;
                         HomeAssistantService.setOptimisticState(root.entityData.entityId, "oscillating", next);
                         HomeAssistantService.setOscillating(root.entityData.entityId, next);
                     }
@@ -200,7 +200,7 @@ Column {
                 options: parent.section.options
                 onSelected: (v) => {
                     HomeAssistantService.setOptimisticState(root.entityData.entityId, "preset_mode", v);
-                    HomeAssistantService.setPresetMode(root.entityData.entityId, v);
+                    HomeAssistantService.setOption(root.entityData.entityId, "fan", "preset_mode", v);
                 }
             }
         }

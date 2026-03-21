@@ -350,10 +350,31 @@ PluginComponent {
         searchDebounceTimer.restart();
     }
     
-    readonly property var entityDomains: {
+    function entitySupportsMoreInfo(entity) {
+        if (!entity)
+            return false;
+
+        const attrs = entity.attributes || {};
+        const domain = entity.domain || "";
+
+        if (HassConstants.isControllableDomain(domain))
+            return true;
+
+        return attrs.brightness !== undefined
+            || attrs.color_temp !== undefined
+            || attrs.color_temp_kelvin !== undefined
+            || attrs.percentage !== undefined
+            || attrs.current_position !== undefined
+            || attrs.options !== undefined
+            || attrs.effect_list !== undefined;
+    }
+
+    readonly property var moreInfoDomains: {
         const entities = globalAllEntities.value || [];
         const searchLower = debouncedSearchText.toLowerCase().trim();
-        const filteredEntities = searchLower ? entities.filter(e => matchesEntitySearch(e, searchLower, "")) : entities;
+        const filteredEntities = entities
+            .filter(e => entitySupportsMoreInfo(e))
+            .filter(e => !searchLower || matchesEntitySearch(e, searchLower, ""));
 
         const domains = {};
         for (let i = 0; i < filteredEntities.length; i++) {
@@ -368,15 +389,13 @@ PluginComponent {
         return Object.keys(domains).sort().map(domain => {
             return {
                 name: domain,
-                entities: domains[domain].sort((a, b) => {
-                    return a.friendlyName.localeCompare(b.friendlyName);
-                })
+                entities: domains[domain].sort((a, b) => a.friendlyName.localeCompare(b.friendlyName))
             };
         });
     }
 
     // Browse mode: "domain" or "device"
-    property string browseMode: "device"
+    property string browseMode: "more_info"
 
     // Entity grouping by device
     readonly property var entityDevices: {
@@ -634,7 +653,7 @@ PluginComponent {
                                 browseMode: root.browseMode
                                 searchText: root.entitySearchText
                                 deviceModel: root.entityDevices
-                                domainModel: root.entityDomains
+                                moreInfoModel: root.moreInfoDomains
                                 monitoredEntityIds: root.monitoredEntityIds
 
                                 onRequestToggleMonitor: entityId => root.toggleMonitorEntity(entityId)
