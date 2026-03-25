@@ -10,11 +10,12 @@ Rectangle {
     id: root
 
     property bool isOpen: false
-    property string browseMode: "device"
+    property string browseMode: "more_info"
     property string searchText: ""
     property var deviceModel: []
-    property var domainModel: []
+    property var moreInfoModel: []
     property bool contentReady: false
+    readonly property int browserHeaderHeight: 44
 
     // Signals to communicate with parent
     signal requestToggleMonitor(string entityId)
@@ -25,9 +26,8 @@ Rectangle {
     property var expandedGroups: ({})
 
     function toggleGroupExpanded(groupName) {
-        let expanded = Object.assign({}, expandedGroups);
-        expanded[groupName] = !expanded[groupName];
-        expandedGroups = expanded;
+        const shouldExpand = !expandedGroups[groupName];
+        expandedGroups = shouldExpand ? ({ [groupName]: true }) : ({});
     }
 
     function isGroupExpanded(groupName) {
@@ -43,6 +43,23 @@ Rectangle {
         return monitoredEntityIds.indexOf(entityId) >= 0;
     }
 
+    function currentModel() {
+        switch (browseMode) {
+        case "device":
+            return deviceModel;
+        case "more_info":
+            return moreInfoModel;
+        default:
+            return moreInfoModel;
+        }
+    }
+
+    function currentGroupTitle(group) {
+        if (browseMode === "device")
+            return group.name;
+        return (group.name || "").toUpperCase();
+    }
+
     width: parent.width
     height: isOpen ? 400 : 0
     color: "transparent"
@@ -56,123 +73,29 @@ Rectangle {
         }
     }
 
-    Column {
-        width: parent.width
-        height: parent.height
-        spacing: 0
-
-        Rectangle {
-            width: parent.width
-            height: 1
-            color: Theme.outline
-            opacity: 0.3
-        }
-
         Column {
             width: parent.width
-            spacing: 0
+            height: parent.height
+            spacing: Theme.spacingS
 
-            StyledText {
-                width: parent.width
-                text: I18n.tr("Browse All Entities", "Entity browser title")
-                font.pixelSize: Theme.fontSizeMedium
-                font.weight: Font.Medium
-                color: Theme.surfaceText
-                leftPadding: Theme.spacingM
-                topPadding: Theme.spacingS
-                bottomPadding: Theme.spacingXS
-            }
-
-            // Browse mode toggle
-            Row {
-                width: parent.width - Theme.spacingM * 2
-                anchors.horizontalCenter: parent.horizontalCenter
-                height: 32
-                spacing: Theme.spacingXS
-
-                Rectangle {
-                    width: (parent.width - Theme.spacingXS) / 2
-                    height: parent.height
-                    radius: Theme.cornerRadius
-                    color: root.browseMode === "device" ? Theme.primary : Theme.surfaceContainerHigh
-                    
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: Theme.spacingXS
-                        
-                        DankIcon {
-                            name: "devices"
-                            size: 16
-                            color: root.browseMode === "device" ? Theme.primaryText : Theme.surfaceText
-                        }
-                        
-                        StyledText {
-                            text: I18n.tr("Devices", "Browse mode label")
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: Font.Medium
-                            color: root.browseMode === "device" ? Theme.primaryText : Theme.surfaceText
-                        }
-                    }
-                    
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.requestBrowseModeChange("device")
-                    }
-                }
-
-                Rectangle {
-                    width: (parent.width - Theme.spacingXS) / 2
-                    height: parent.height
-                    radius: Theme.cornerRadius
-                    color: root.browseMode === "domain" ? Theme.primary : Theme.surfaceContainerHigh
-                    
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: Theme.spacingXS
-                        
-                        DankIcon {
-                            name: "category"
-                            size: 16
-                            color: root.browseMode === "domain" ? Theme.primaryText : Theme.surfaceText
-                        }
-                        
-                        StyledText {
-                            text: I18n.tr("Domains", "Browse mode label")
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: Font.Medium
-                            color: root.browseMode === "domain" ? Theme.primaryText : Theme.surfaceText
-                        }
-                    }
-                    
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.requestBrowseModeChange("domain")
-                    }
-                }
-            }
+        Row {
+            width: parent.width
+            height: root.browserHeaderHeight
+            spacing: Theme.spacingXS
 
             Rectangle {
-                width: parent.width
-                height: Theme.spacingXS
-                color: "transparent"
-            }
-
-            Rectangle {
-                width: parent.width - Theme.spacingM * 2
-                height: 36
-                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width - modeTabs.width - parent.spacing
+                height: parent.height
                 radius: Theme.cornerRadius
-                color: Theme.surfaceContainer
+                color: Theme.surfaceContainerLowest || Theme.surfaceContainer
                 border.width: searchInput.activeFocus ? 2 : 1
-                border.color: searchInput.activeFocus ? Theme.primary : Theme.outline
+                border.color: searchInput.activeFocus ? Theme.primary : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18)
 
                 Row {
                     anchors.fill: parent
-                    anchors.leftMargin: Theme.spacingS
+                    anchors.leftMargin: Theme.spacingM
                     anchors.rightMargin: Theme.spacingS
-                    spacing: Theme.spacingXS
+                    spacing: Theme.spacingS
 
                     DankIcon {
                         name: "search"
@@ -183,10 +106,10 @@ Rectangle {
 
                     TextInput {
                         id: searchInput
-                        width: parent.width - 50
+                        width: parent.width - 56
                         height: parent.height
                         color: Theme.surfaceText
-                        font.pixelSize: Theme.fontSizeMedium
+                        font.pixelSize: Theme.fontSizeSmall + 1
                         verticalAlignment: TextInput.AlignVCenter
                         text: root.searchText
                         onTextChanged: root.requestSearchTextChange(text)
@@ -195,16 +118,16 @@ Rectangle {
                             anchors.fill: parent
                             text: I18n.tr("Search entities...", "Entity browser search placeholder")
                             color: Theme.surfaceVariantText
-                            font.pixelSize: Theme.fontSizeMedium
+                            font.pixelSize: Theme.fontSizeSmall + 1
                             verticalAlignment: Text.AlignVCenter
                             visible: !searchInput.text && !searchInput.activeFocus
                         }
                     }
 
                     Rectangle {
-                        width: 20
-                        height: 20
-                        radius: 10
+                        width: 24
+                        height: 24
+                        radius: 12
                         color: clearMouse.containsMouse ? Theme.surfaceVariantText : "transparent"
                         visible: root.searchText.length > 0
                         anchors.verticalCenter: parent.verticalCenter
@@ -231,139 +154,214 @@ Rectangle {
             }
 
             Rectangle {
-                width: parent.width
-                height: Theme.spacingS
-                color: "transparent"
+                id: modeTabs
+                width: 84
+                height: parent.height
+                radius: Theme.cornerRadius
+                color: Theme.surfaceContainerLowest || Theme.surfaceContainer
+                border.width: 1
+                border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.14)
+
+                Row {
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    spacing: 4
+
+                    Rectangle {
+                        width: (parent.width - parent.spacing) / 2
+                        height: parent.height
+                        radius: Theme.cornerRadius * 0.8
+                        color: root.browseMode === "more_info"
+                            ? Theme.primaryContainer
+                            : "transparent"
+                        border.width: root.browseMode === "more_info" ? 0 : 1
+                        border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.10)
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            DankIcon {
+                                name: "tune"
+                                size: 16
+                                color: root.browseMode === "more_info" ? Theme.primary : Theme.surfaceText
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.requestBrowseModeChange("more_info")
+                        }
+                    }
+
+                    Rectangle {
+                        width: (parent.width - parent.spacing) / 2
+                        height: parent.height
+                        radius: Theme.cornerRadius * 0.8
+                        color: root.browseMode === "device"
+                            ? Theme.primaryContainer
+                            : "transparent"
+                        border.width: root.browseMode === "device" ? 0 : 1
+                        border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.10)
+
+                        Row {
+                            anchors.centerIn: parent
+                            spacing: 4
+
+                            DankIcon {
+                                name: "devices"
+                                size: 16
+                                color: root.browseMode === "device" ? Theme.primary : Theme.surfaceText
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.requestBrowseModeChange("device")
+                        }
+                    }
+                }
             }
         }
 
         DankListView {
             id: browserListView
             width: parent.width
-            height: parent.height - 135  // Increased to account for mode toggle
-            leftMargin: Theme.spacingM
-            rightMargin: Theme.spacingM
-            spacing: 4
+            height: parent.height - root.browserHeaderHeight - Theme.spacingS
+            spacing: Theme.spacingS
             clip: true
             cacheBuffer: 200  // Pre-render items slightly outside viewport
-            model: root.contentReady ? (root.browseMode === "device" ? root.deviceModel : root.domainModel) : []
+            model: root.contentReady ? root.currentModel() : []
 
             delegate: Column {
                 id: groupColumn
-                width: (parent ? parent.width : root.width) - Theme.spacingM * 2
-                spacing: 2
+                width: parent ? parent.width : root.width
+                spacing: Theme.spacingXS
 
                 property bool isExpanded: root.isGroupExpanded(modelData.name)
 
+                Rectangle {
+                    width: parent.width
+                    height: 40
+                    radius: Theme.cornerRadius * 0.8
+                    color: groupMouse.containsMouse
+                        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.05)
+                        : (Theme.surfaceContainerLowest || Theme.surfaceContainerLow || Theme.surfaceContainer)
+                    border.width: 1
+                    border.color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.10)
+
                     MouseArea {
-                        width: parent.width
-                        height: headerItem.height
+                        id: groupMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: root.toggleGroupExpanded(modelData.name)
+                    }
 
-                        Item {
-                            id: headerItem
-                            width: parent.width
-                            height: 40
+                    Item {
+                        anchors.left: parent.left
+                        anchors.leftMargin: Theme.spacingM
+                        anchors.right: parent.right
+                        anchors.rightMargin: Theme.spacingXS
+                        anchors.verticalCenter: parent.verticalCenter
+                        height: 24
 
-                            Row {
-                                anchors.left: parent.left
-                                anchors.leftMargin: Theme.spacingS
+                        Row {
+                            id: groupLeadingRow
+                            anchors.left: parent.left
+                            anchors.verticalCenter: parent.verticalCenter
+                            spacing: Theme.spacingS
+
+                            DankIcon {
+                                name: groupColumn.isExpanded ? "expand_less" : "expand_more"
+                                size: 16
+                                color: Theme.primary
                                 anchors.verticalCenter: parent.verticalCenter
-                                spacing: Theme.spacingS
-                                
-                                DankIcon {
-                                    name: groupColumn.isExpanded ? "expand_less" : "expand_more"
-                                    size: 14
-                                    color: Theme.primary
-                                }
-
-                                DankIcon {
-                                    name: root.browseMode === "device" ? "devices" : "category"
-                                    size: 14
-                                    color: Theme.primary
-                                }
-                                
-                                StyledText {
-                                    text: root.browseMode === "device" 
-                                        ? modelData.name 
-                                        : modelData.name.toUpperCase()
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    font.weight: Font.Bold
-                                    color: Theme.primary
-                                    width: Math.min(200, headerItem.width - 150)
-                                    elide: Text.ElideRight
-                                }
-                                
-                                StyledText {
-                                    text: "(" + modelData.entities.length + ")"
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    color: Theme.surfaceVariantText
-                                    visible: root.browseMode === "device"
-                                }
-                            }
-
-                            // "Add All" button for devices
-                            Rectangle {
-                                anchors.right: parent.right
-                                anchors.rightMargin: Theme.spacingS
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 60
-                                height: 24
-                                radius: Theme.cornerRadius
-                                color: addAllMouse.containsMouse ? Theme.primary : Theme.surfaceContainerHigh
-                                visible: root.browseMode === "device" && modelData.entities.length > 0
-
-                                StyledText {
-                                    anchors.centerIn: parent
-                                    text: I18n.tr("Add All", "Action label")
-                                    font.pixelSize: 10
-                                    font.weight: Font.Bold
-                                    color: addAllMouse.containsMouse ? Theme.primaryText : Theme.primary
-                                }
-
-                                MouseArea {
-                                    id: addAllMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                    const idsToAdd = modelData.entities
-                                        .map(e => e.entityId)
-                                        .filter(id => !root.isEntityMonitored(id));
-                                    
-                                    if (idsToAdd.length > 0) {
-                                        HomeAssistantService.addEntitiesToMonitor(idsToAdd);
-                                    }
-                                }
-                                }
                             }
                         }
+
+                        Rectangle {
+                            id: countBadge
+                            anchors.right: parent.right
+                            anchors.verticalCenter: parent.verticalCenter
+                            height: 22
+                            radius: 11
+                            width: countLabel.implicitWidth + Theme.spacingS * 2
+                            color: Qt.rgba(Theme.surfaceVariantText.r, Theme.surfaceVariantText.g, Theme.surfaceVariantText.b, 0.08)
+
+                            StyledText {
+                                id: countLabel
+                                anchors.centerIn: parent
+                                text: modelData.entities.length + " " + I18n.tr("items", "Entity browser group count")
+                                font.pixelSize: Theme.fontSizeSmall - 2
+                                font.weight: Font.Medium
+                                color: Theme.surfaceVariantText
+                            }
+                        }
+
+                        StyledText {
+                            anchors.left: groupLeadingRow.right
+                            anchors.leftMargin: Theme.spacingS
+                            anchors.right: countBadge.left
+                            anchors.rightMargin: Theme.spacingS
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: root.currentGroupTitle(modelData)
+                            font.pixelSize: Theme.fontSizeSmall + 1
+                            font.weight: Font.DemiBold
+                            color: Theme.surfaceText
+                            elide: Text.ElideRight
+                        }
                     }
+                }
 
                 // Lazy load entities only when group is expanded
                 Loader {
                     width: parent.width
                     active: groupColumn.isExpanded
                     visible: status === Loader.Ready
-                    asynchronous: true  // Load in background to avoid UI freeze
+                    asynchronous: false
                     
                     sourceComponent: Column {
-                        width: parent ? parent.width : groupColumn.width
-                        spacing: 2
+                        width: parent ? parent.width - Theme.spacingM : groupColumn.width - Theme.spacingM
+                        anchors.right: parent ? parent.right : undefined
+                        spacing: Theme.spacingXS
 
                         Repeater {
                             model: modelData.entities
 
                             StyledRect {
+                                id: entityRowCard
                                 width: parent.width
-                                height: Math.max(40, contentRow.height + Theme.spacingS * 2)
-                                radius: Theme.cornerRadius
-                                color: entityBrowserMouse.containsMouse ? Theme.surfaceContainerHigh : Theme.surfaceContainer
+                                height: Math.max(54, textColumn.implicitHeight + Theme.spacingM * 2)
+                                radius: Theme.cornerRadius * 1.2
+                                color: entityBrowserMouse.containsMouse
+                                    ? (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh)
+                                    : (Theme.surfaceContainerLow || Theme.surfaceContainer)
+                                border.width: 1
+                                border.color: isMonitored
+                                    ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.25)
+                                    : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18)
 
-                                property bool isMonitored: root.isEntityMonitored(modelData.entityId)
+                                property bool isMonitored: monitorOverride !== undefined ? !!monitorOverride : actualMonitored
                                 property bool isShortcut: HomeAssistantService.isShortcut(modelData.entityId)
                                 property bool canBeShortcut: modelData.domain === "button" || modelData.domain === "switch" || modelData.domain === "script" || modelData.domain === "scene"
+                                property var monitorOverride: undefined
+                                readonly property bool actualMonitored: root.isEntityMonitored(modelData.entityId)
+
+                                function requestMonitorToggle() {
+                                    monitorOverride = !isMonitored;
+                                    Qt.callLater(function() {
+                                        root.requestToggleMonitor(modelData.entityId);
+                                    });
+                                }
+
+                                onActualMonitoredChanged: {
+                                    if (monitorOverride !== undefined && actualMonitored === monitorOverride) {
+                                        monitorOverride = undefined;
+                                    }
+                                }
 
                                 Row {
                                     id: contentRow
@@ -376,11 +374,12 @@ Rectangle {
 
                                     // Monitor Checkbox
                                     Rectangle {
+                                        id: monitorToggle
                                         width: 20
                                         height: 20
                                         radius: Theme.cornerRadius || 4
-                                        color: parent.parent.isMonitored ? Theme.primary : "transparent"
-                                        border.width: 2
+                                        color: parent.parent.isMonitored ? Theme.primary : (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh)
+                                        border.width: parent.parent.isMonitored ? 0 : 2
                                         border.color: parent.parent.isMonitored ? Theme.primary : Theme.outline
                                         anchors.verticalCenter: parent.verticalCenter
 
@@ -389,27 +388,28 @@ Rectangle {
                                             size: 14
                                             color: Theme.primaryText
                                             anchors.centerIn: parent
-                                            visible: parent.parent.parent.isMonitored
+                                            visible: entityRowCard.isMonitored
                                         }
                                         
                                         MouseArea {
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.requestToggleMonitor(modelData.entityId)
+                                            onClicked: entityRowCard.requestMonitorToggle()
                                         }
                                     }
                                     
                                     // Shortcut Star
                                     Rectangle {
+                                        id: shortcutStar
                                         width: 20; height: 20; radius: width / 2
                                         color: "transparent"
                                         visible: parent.parent.canBeShortcut
                                         anchors.verticalCenter: parent.verticalCenter
                                         
                                         DankIcon {
-                                            name: parent.parent.parent.isShortcut ? "star" : "star_border"
+                                            name: entityRowCard.isShortcut ? "star" : "star_border"
                                             size: 18
-                                            color: parent.parent.parent.isShortcut ? "#FFC107" : Theme.surfaceVariantText // Amber for star
+                                            color: entityRowCard.isShortcut ? "#FFC107" : Theme.surfaceVariantText // Amber for star
                                             anchors.centerIn: parent
                                         }
                                         
@@ -417,7 +417,7 @@ Rectangle {
                                             anchors.fill: parent
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                if (parent.parent.parent.isShortcut) {
+                                                if (entityRowCard.isShortcut) {
                                                     HomeAssistantService.removeShortcut(modelData.entityId);
                                                 } else {
                                                     HomeAssistantService.addShortcut(modelData);
@@ -428,14 +428,20 @@ Rectangle {
                                     }
 
                                     DankIcon {
+                                        id: entityTypeIcon
                                         name: HassConstants.getIconForDomain(modelData.domain)
                                         size: 18
-                                        color: Theme.surfaceVariantText
+                                        color: parent.parent.isMonitored ? Theme.primary : Theme.surfaceVariantText
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
 
                                     Column {
-                                        width: parent.width - 100
+                                        id: textColumn
+                                        width: contentRow.width
+                                            - monitorToggle.width
+                                            - entityTypeIcon.width
+                                            - (shortcutStar.visible ? shortcutStar.width : 0)
+                                            - Theme.spacingS * (shortcutStar.visible ? 3 : 2)
                                         spacing: 2
                                         anchors.verticalCenter: parent.verticalCenter
 
@@ -443,19 +449,19 @@ Rectangle {
                                             text: modelData.friendlyName
                                             font.pixelSize: Theme.fontSizeSmall
                                             color: Theme.surfaceText
-                                            elide: Text.ElideRight
                                             width: parent.width
-                                            wrapMode: Text.NoWrap
+                                            wrapMode: Text.Wrap
+                                            maximumLineCount: 3
                                         }
 
                                         StyledText {
                                             text: {
                                                 const val = modelData.state || "";
                                                 const unit = modelData.unitOfMeasurement || "";
-                                                return unit ? `${val}${unit}` : val;
+                                                return unit ? `${val} ${unit}` : val;
                                             }
                                             font.pixelSize: Theme.fontSizeSmall - 1
-                                            color: Theme.primary
+                                            color: entityRowCard.isMonitored ? Theme.primary : Theme.surfaceVariantText
                                             width: parent.width
                                             wrapMode: Text.Wrap
                                             maximumLineCount: 3
@@ -471,7 +477,7 @@ Rectangle {
                                     anchors.leftMargin: 80 // Leave space for checkboxes and star
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.requestToggleMonitor(modelData.entityId)
+                                    onClicked: entityRowCard.requestMonitorToggle()
                                 }
                             }
                         }

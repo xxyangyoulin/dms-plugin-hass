@@ -14,6 +14,8 @@ Singleton {
     readonly property string pluginId: "homeAssistantMonitor"
 
     property bool haAvailable: false
+    property string connectionStatus: "offline"
+    property string connectionMessage: ""
     property string hassUrl: ""
     property string hassTokenPath: ""
     property string _tokenFromFile: ""
@@ -36,9 +38,99 @@ Singleton {
     // Entity Overrides (Friendly Name)
     property var entityOverrides: ({})
 
+    function loadPersistentPluginValue(key, fallbackValue) {
+        if (PluginService.loadPluginState) {
+            const stateValue = PluginService.loadPluginState(pluginId, key, undefined);
+            if (stateValue !== undefined) {
+                return stateValue;
+            }
+        }
+
+        const dataValue = PluginService.loadPluginData(pluginId, key, undefined);
+        return dataValue !== undefined ? dataValue : fallbackValue;
+    }
+
+    function savePersistentPluginValue(key, value) {
+        if (PluginService.savePluginState) {
+            PluginService.savePluginState(pluginId, key, value);
+            return;
+        }
+        PluginService.savePluginData(pluginId, key, value);
+    }
+
     function loadEntityOverrides() {
-        var data = PluginService.loadPluginData(pluginId, "entityOverrides");
+        var data = loadPersistentPluginValue("entityOverrides", {});
         entityOverrides = data || {};
+    }
+
+    function findCachedEntityIndex(entityId) {
+        if (!cachedAllEntities) return -1;
+        for (let i = 0; i < cachedAllEntities.length; i++) {
+            if (cachedAllEntities[i].entityId === entityId) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    function getCachedEntity(entityId) {
+        const index = findCachedEntityIndex(entityId);
+        return index >= 0 ? cachedAllEntities[index] : null;
+    }
+
+    function upsertCachedEntity(entity) {
+        if (!entity) return;
+        const nextEntities = Array.from(cachedAllEntities || []);
+        const index = findCachedEntityIndex(entity.entityId);
+        if (index >= 0) {
+            nextEntities[index] = entity;
+        } else {
+            nextEntities.push(entity);
+        }
+        cachedAllEntities = nextEntities;
+    }
+
+    function applyOptimisticState(entity) {
+        if (!entity) return null;
+        const overrides = optimisticStates[entity.entityId];
+        if (!overrides) return entity;
+
+        const nextEntity = Object.assign({}, entity);
+        for (const key in overrides) {
+            if (key === "state") {
+                nextEntity.state = overrides[key];
+            } else {
+                nextEntity.attributes = Object.assign({}, nextEntity.attributes || {});
+                nextEntity.attributes[key] = overrides[key];
+            }
+        }
+        return nextEntity;
+    }
+
+    function buildEntityMap(entities) {
+        const entityMap = {};
+        for (const entity of entities || []) {
+            entityMap[entity.entityId] = entity;
+        }
+        return entityMap;
+    }
+
+    function buildMonitoredEntities(entityIdsList, entityMap) {
+        const monitoredEntities = [];
+        for (const id of entityIdsList) {
+            if (entityMap[id]) {
+                monitoredEntities.push(applyOptimisticState(entityMap[id]));
+            }
+        }
+        return monitoredEntities;
+    }
+
+    function persistMonitoredEntityIds() {
+        if (PluginService.savePluginState) {
+            PluginService.savePluginState(pluginId, "entityIds", entityIds);
+        } else {
+            PluginService.savePluginData(pluginId, "entityIds", entityIds);
+        }
     }
 
     function renameEntity(entityId, newName) {
@@ -49,20 +141,15 @@ Singleton {
             delete overrides[entityId];
         }
         entityOverrides = overrides;
-        PluginService.savePluginData(pluginId, "entityOverrides", overrides);
+        savePersistentPluginValue("entityOverrides", overrides);
 
         // Update cached entity immediately
         if (cachedAllEntities) {
-            var newCached = Array.from(cachedAllEntities);
-            for (var i = 0; i < newCached.length; i++) {
-                if (newCached[i].entityId === entityId) {
-                    // Create a new object to ensure property changes are detected
-                    newCached[i] = Object.assign({}, newCached[i], { friendlyName: newName });
-                    break;
-                }
+            const cachedEntity = getCachedEntity(entityId);
+            if (cachedEntity) {
+                upsertCachedEntity(Object.assign({}, cachedEntity, { friendlyName: newName }));
             }
-            cachedAllEntities = newCached;
-            PluginService.setGlobalVar(pluginId, "allEntities", newCached);
+            PluginService.setGlobalVar(pluginId, "allEntities", cachedAllEntities);
             reprocessMonitoredEntities(); // This pushes changes to global "entities" var
         }
         
@@ -89,6 +176,9 @@ Singleton {
     property var lastPingTime: 0
     property int currentReconnectInterval: Components.HassConstants.initialReconnectInterval
     readonly property int maxReconnectInterval: Components.HassConstants.maxReconnectInterval
+    property bool wsAuthenticated: false
+    property bool suppressReconnect: false
+    property var entityActionStates: ({})
 
     function clearCallbacks(reason) {
         for (var id in wsCallbacks) {
@@ -101,6 +191,75 @@ Singleton {
             }
         }
         wsCallbacks = ({});
+    }
+
+    function setConnectionState(status, message) {
+        connectionStatus = status;
+        connectionMessage = message || "";
+        PluginService.setGlobalVar(pluginId, "haConnectionStatus", connectionStatus);
+        PluginService.setGlobalVar(pluginId, "haConnectionMessage", connectionMessage);
+    }
+
+    function setEntityActionState(entityId, status, action, message, phase) {
+        if (!entityId) return;
+
+        var nextStates = Object.assign({}, entityActionStates);
+        nextStates[entityId] = {
+            status: status,
+            action: action || "",
+            message: message || "",
+            phase: phase || "",
+            updatedAt: Date.now()
+        };
+        entityActionStates = nextStates;
+        PluginService.setGlobalVar(pluginId, "haEntityActionStates", entityActionStates);
+        entityActionStateChanged(entityId);
+        entityDataChanged(entityId);
+
+        if (status === "success" || status === "error") {
+            actionStateCleanupTimer.start();
+        }
+    }
+
+    function clearEntityActionState(entityId) {
+        if (!entityId || !entityActionStates[entityId]) return;
+
+        var nextStates = Object.assign({}, entityActionStates);
+        delete nextStates[entityId];
+        entityActionStates = nextStates;
+        PluginService.setGlobalVar(pluginId, "haEntityActionStates", entityActionStates);
+        entityActionStateChanged(entityId);
+        entityDataChanged(entityId);
+    }
+
+    function getEntityActionState(entityId) {
+        if (!entityId || !entityActionStates[entityId]) {
+            return {
+                status: "idle",
+                action: "",
+                message: "",
+                phase: "",
+                updatedAt: 0
+            };
+        }
+        return entityActionStates[entityId];
+    }
+
+    function formatServiceError(response, fallbackMessage) {
+        if (response && response.error) {
+            if (response.error.message) return response.error.message;
+            if (response.error.code) return String(response.error.code);
+        }
+        if (typeof response === "string" && response !== "") return response;
+        return fallbackMessage || "Request failed";
+    }
+
+    function canUseWebSocketApi() {
+        return socket && socket.status === root.wsOpen && wsAuthenticated;
+    }
+
+    function canAssumeImmediateSuccess(domain) {
+        return ["button", "scene", "script", "automation"].indexOf(domain) >= 0;
     }
 
     // WebSocket Constants (mapped to QtWebSockets values)
@@ -183,25 +342,38 @@ Singleton {
             function onSocketStatusChanged(status) {
                 if (status === root.wsError) {
                     console.error("HomeAssistantMonitor: WebSocket Error:", wsLoader.item.errorString);
+                    wsAuthenticated = false;
                     haAvailable = false;
                     latency = -1;
                     PluginService.setGlobalVar(pluginId, "latency", -1);
                     PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
                     clearCallbacks("WebSocket Error: " + wsLoader.item.errorString);
-                    reconnectTimer.start();
+                    if (suppressReconnect) {
+                        setConnectionState("auth_error", connectionMessage || wsLoader.item.errorString);
+                    } else {
+                        setConnectionState("offline", wsLoader.item.errorString || "WebSocket error");
+                        reconnectTimer.start();
+                    }
                 } else if (status === root.wsClosed) {
+                    wsAuthenticated = false;
                     haAvailable = false;
                     latency = -1;
                     PluginService.setGlobalVar(pluginId, "latency", -1);
                     PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
                     clearCallbacks("WebSocket Closed");
-                    reconnectTimer.start();
+                    if (suppressReconnect) {
+                        setConnectionState("auth_error", connectionMessage || "Authentication failed");
+                        suppressReconnect = false;
+                    } else {
+                        setConnectionState("offline", "Disconnected from Home Assistant");
+                        reconnectTimer.start();
+                    }
                 } else if (status === root.wsOpen) {
                     currentReconnectInterval = 5000;
-                    haAvailable = true;
-                    PluginService.setGlobalVar(pluginId, "haAvailable", true);  // Notify UI immediately
+                    haAvailable = false;
+                    PluginService.setGlobalVar(pluginId, "haAvailable", false);
+                    setConnectionState("connecting", "Authenticating with Home Assistant");
                     reconnectTimer.stop();
-                    pingTimer.start();
                 }
             }
 
@@ -243,6 +415,10 @@ Singleton {
                     if (response.type === "pong") {
                         root.latency = Date.now() - root.lastPingTime;
                         PluginService.setGlobalVar(pluginId, "latency", root.latency);
+                        setConnectionState(root.latency >= 1000 ? "degraded" : "online",
+                                           root.latency >= 1000 ? "Home Assistant connection is slow" : "");
+                    } else if (response && response.success === false) {
+                        setConnectionState("degraded", "Home Assistant ping timed out");
                     }
                 });
             } else {
@@ -263,12 +439,18 @@ Singleton {
             const val = PluginService.loadPluginData(pluginId, key);
             return val !== undefined ? val : defaultValue;
         }
+        const loadState = (key, defaultValue) => {
+            if (PluginService.loadPluginState) {
+                return PluginService.loadPluginState(pluginId, key, defaultValue);
+            }
+            return defaultValue;
+        }
 
         hassUrl = load("hassUrl", "http://homeassistant.local:8123");
         _tokenFromSettings = load("hassToken", "").toString().trim();
         hassTokenPath = load("hassTokenPath", "").toString().trim();
         
-        entityIds = load("entityIds", "");
+        entityIds = loadState("entityIds", load("entityIds", ""));
         refreshInterval = load("refreshInterval", 3);
         showAttributes = load("showAttributes", false);
 
@@ -299,7 +481,7 @@ Singleton {
     property alias shortcutsModel: shortcutsListModel
 
     function loadShortcuts() {
-        var data = PluginService.loadPluginData(pluginId, "shortcuts");
+        var data = loadPersistentPluginValue("shortcuts", []);
         shortcuts = data || [];
         _syncShortcutsModel();
     }
@@ -331,7 +513,7 @@ Singleton {
             "name": newItem.name,
             "domain": newItem.domain
         });
-        PluginService.savePluginData(pluginId, "shortcuts", list);
+        savePersistentPluginValue("shortcuts", list);
     }
 
     function removeShortcut(entityId) {
@@ -346,7 +528,7 @@ Singleton {
             }
         }
         
-        PluginService.savePluginData(pluginId, "shortcuts", list);
+        savePersistentPluginValue("shortcuts", list);
     }
 
     function renameShortcut(entityId, newName) {
@@ -367,7 +549,7 @@ Singleton {
             }
         }
 
-        PluginService.savePluginData(pluginId, "shortcuts", list);
+        savePersistentPluginValue("shortcuts", list);
     }
 
     function moveShortcut(fromIndex, toIndex) {
@@ -381,7 +563,7 @@ Singleton {
 
         shortcutsListModel.move(fromIndex, toIndex, 1);
 
-        PluginService.savePluginData(pluginId, "shortcuts", list);
+        savePersistentPluginValue("shortcuts", list);
     }
 
     function isShortcut(entityId) {
@@ -424,6 +606,16 @@ Singleton {
         onTriggered: fetchEntities()
     }
 
+    property var monitoredEntitiesSyncTimer: Timer {
+        interval: 16
+        running: false
+        repeat: false
+        onTriggered: {
+            persistMonitoredEntityIds();
+            reprocessMonitoredEntities();
+        }
+    }
+
     onRefreshIntervalChanged: {
         refreshTimer.interval = refreshInterval * 1000;
         if (refreshTimer.running) {
@@ -432,17 +624,22 @@ Singleton {
     }
 
     function initialize() {
+        setConnectionState(isConfigured ? "connecting" : "offline",
+                           isConfigured ? "Connecting to Home Assistant" : "Configure Home Assistant URL and token");
         fetchServices();
         fetchDevices();
         refresh(); // Initial fetch via REST to get data immediately
     }
 
     function refresh() {
-        if (socket && socket.status === root.wsOpen) {
+        if (canUseWebSocketApi()) {
             // 1. Fetch States
             sendWsMessage({ type: "get_states" }, (response) => {
                 if (response.success && Array.isArray(response.result)) {
                     updateAllEntitiesFromWs(response.result);
+                    refreshCompleted(true);
+                } else {
+                    refreshCompleted(false);
                 }
             });
 
@@ -454,7 +651,7 @@ Singleton {
                 fetchDevices();
             }
         } else {
-            fetchEntities();
+            fetchEntities(true);
         }
     }
 
@@ -474,13 +671,17 @@ Singleton {
 
     function handleWsMessage(data) {
         if (data.type === "auth_required") {
+            setConnectionState("connecting", "Authenticating with Home Assistant");
             socket.sendTextMessage(JSON.stringify({
                 type: "auth",
                 access_token: root.hassToken
             }));
         } else if (data.type === "auth_ok") {
+            wsAuthenticated = true;
             haAvailable = true;
             PluginService.setGlobalVar(pluginId, "haAvailable", true);  // Notify UI immediately
+            setConnectionState("online", "");
+            pingTimer.start();
 
             // Subscribe to state changes
             sendWsMessage({ type: "subscribe_events", event_type: "state_changed" });
@@ -497,13 +698,19 @@ Singleton {
                     if (response.type === "pong") {
                         root.latency = Date.now() - root.lastPingTime;
                         PluginService.setGlobalVar(pluginId, "latency", root.latency);
+                    } else if (response && response.success === false) {
+                        setConnectionState("degraded", "Home Assistant ping timed out");
                     }
                 });
             });
         } else if (data.type === "auth_invalid") {
             console.error("HomeAssistantMonitor: WebSocket Auth Failed:", data.message);
+            wsAuthenticated = false;
             haAvailable = false;
             PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
+            setConnectionState("auth_error", data.message || "Authentication failed");
+            suppressReconnect = true;
+            pingTimer.stop();
             socket.active = false;
         } else if (data.type === "event") {
             if (data.event.event_type === "state_changed") {
@@ -527,55 +734,23 @@ Singleton {
          const parsedEntityIds = parseEntityIds();
 
          const allEntities = [];
-         const entityMap = {};
 
          for (const entity of allStates) {
              const mapped = mapEntity(entity);
              if (mapped) {
                  allEntities.push(mapped);
-                 entityMap[mapped.entityId] = mapped;
              }
          }
 
          cachedAllEntities = allEntities;
          PluginService.setGlobalVar(pluginId, "allEntities", allEntities);
-
-         // Build monitored list in order with optimistic states applied
-         const monitoredEntities = [];
-         for (const id of parsedEntityIds) {
-             if (entityMap[id]) {
-                 let entity = entityMap[id];
-
-                 // Apply optimistic state overrides if present
-                 const entityOptimisticStates = optimisticStates[id];
-                 if (entityOptimisticStates) {
-                     // Create a shallow copy to avoid mutating cached entity
-                     entity = Object.assign({}, entity);
-
-                     // Apply state override
-                     if (entityOptimisticStates.state !== undefined) {
-                         entity.state = entityOptimisticStates.state;
-                     }
-
-                     // Apply attribute overrides
-                     if (Object.keys(entityOptimisticStates).length > 1) {
-                         entity.attributes = Object.assign({}, entity.attributes);
-                         for (const key in entityOptimisticStates) {
-                             if (key !== "state") {
-                                 entity.attributes[key] = entityOptimisticStates[key];
-                             }
-                         }
-                     }
-                 }
-
-                 monitoredEntities.push(entity);
-             }
-         }
+         const monitoredEntities = buildMonitoredEntities(parsedEntityIds, buildEntityMap(allEntities));
 
          const newIds = monitoredEntities.map(e => e.entityId).join(",");
          lastMonitoredIdsStr = newIds;
 
          haAvailable = true;
+         setConnectionState("online", "");
          updateEntities(monitoredEntities);
     }
 
@@ -585,6 +760,7 @@ Singleton {
 
         const entityId = mapped.entityId;
         const actualState = mapped.state;
+        clearEntityActionState(entityId);
 
         // Check if we have a pending confirmation for this entity
         const pendingEntry = pendingConfirmations[entityId];
@@ -596,17 +772,7 @@ Singleton {
             pendingConfirmations = pending;
 
             // Store actual state in cache (not modified by optimistic state)
-            let found = false;
-            for (let i = 0; i < cachedAllEntities.length; i++) {
-                if (cachedAllEntities[i].entityId === entityId) {
-                    cachedAllEntities[i] = mapped;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found) {
-                cachedAllEntities.push(mapped);
-            }
+            upsertCachedEntity(mapped);
 
             // Don't trigger batch update - wait for confirmation timer
             return;
@@ -622,35 +788,32 @@ Singleton {
         if (hasOptimisticState) {
             const optimisticState = entityOptimisticStates.state;
             if (String(actualState) === String(optimisticState)) {
-                // Match! Clear optimistic state and use actual state
-                _clearOptimisticState(entityId, "state");
+                // Match. Update the cached entity and monitored list first so the UI
+                // never briefly falls back to the stale pre-click state.
+                upsertCachedEntity(mapped);
+                reprocessMonitoredEntities();
+                _clearOptimisticState(entityId, "state", false);
+                optimisticStateChanged(entityId, "state", optimisticState);
+                entityDataChanged(entityId);
+                return;
             }
             // Else: states don't match - keep optimistic state (will be applied later)
         }
 
         // Store actual state in cache (not modified by optimistic state)
-        let found = false;
-        for (let i = 0; i < cachedAllEntities.length; i++) {
-            if (cachedAllEntities[i].entityId === entityId) {
-                cachedAllEntities[i] = mapped;
-                found = true;
-                break;
-            }
-        }
-
-        if (!found) {
-            cachedAllEntities.push(mapped);
-        }
+        upsertCachedEntity(mapped);
 
         // Trigger batch update for monitored list
         batchUpdateTimer.start();
     }
 
     // Helper function to clear optimistic state and emit signal
-    function _clearOptimisticState(entityId, key) {
+    function _clearOptimisticState(entityId, key, notify) {
         if (!optimisticStates[entityId] || optimisticStates[entityId][key] === undefined) {
             return;
         }
+
+        const shouldNotify = notify !== false;
 
         var states = Object.assign({}, optimisticStates);
         var timestamps = Object.assign({}, optimisticTimestamps);
@@ -667,9 +830,10 @@ Singleton {
         optimisticStates = states;
         optimisticTimestamps = timestamps;
 
-        // Emit signal to notify UI components
-        optimisticStateChanged(entityId, key, oldValue);
-        entityDataChanged(entityId);  // Unified signal
+        if (shouldNotify) {
+            optimisticStateChanged(entityId, key, oldValue);
+            entityDataChanged(entityId);  // Unified signal
+        }
     }
 
     function handleWsEntityRemoved(entityId) {
@@ -685,7 +849,7 @@ Singleton {
 
     // Fetch service definitions for dynamic controls via WebSocket
     function fetchServices() {
-        if (servicesLoaded || !socket || socket.status !== root.wsOpen) return;
+        if (servicesLoaded || !canUseWebSocketApi()) return;
         
         sendWsMessage({ type: "get_services" }, (response) => {
             if (response.success && response.result) {
@@ -716,7 +880,7 @@ Singleton {
 
     // Fetch devices and entities registry to build the device mapping via WebSocket
     function fetchDevices() {
-        if (devicesLoaded || !socket || socket.status !== root.wsOpen) return;
+        if (devicesLoaded || !canUseWebSocketApi()) return;
         
         // 1. Get Device Registry
         sendWsMessage({ type: "config/device_registry/list" }, (devResponse) => {
@@ -899,13 +1063,15 @@ Singleton {
             .filter(id => id.length > 0);
     }
 
-    function fetchEntities() {
+    function fetchEntities(emitRefreshCompletion) {
         const parsedEntityIds = parseEntityIds();
+        const shouldEmitRefreshCompletion = emitRefreshCompletion === true;
 
         if (!hassUrl || !hassToken) {
             updateEntities([]);
             haAvailable = false;
             PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
+            if (shouldEmitRefreshCompletion) refreshCompleted(false);
             return;
         }
 
@@ -916,51 +1082,18 @@ Singleton {
 
                     // Single iteration, process all entities and monitored entities
                     const allEntities = [];
-                    const entityMap = {};
 
                     for (const entity of allStates) {
                         const mapped = mapEntity(entity);
                         if (mapped) {
                             allEntities.push(mapped);
-                            entityMap[mapped.entityId] = mapped;
                         }
                     }
 
                     cachedAllEntities = allEntities;
 
                     PluginService.setGlobalVar(pluginId, "allEntities", allEntities);
-
-                    // Build monitored list in order with optimistic states applied
-                    const monitoredEntities = [];
-                    for (const id of parsedEntityIds) {
-                        if (entityMap[id]) {
-                            let entity = entityMap[id];
-
-                            // Apply optimistic state overrides if present
-                            const entityOptimisticStates = optimisticStates[id];
-                            if (entityOptimisticStates) {
-                                // Create a shallow copy to avoid mutating cached entity
-                                entity = Object.assign({}, entity);
-
-                                // Apply state override
-                                if (entityOptimisticStates.state !== undefined) {
-                                    entity.state = entityOptimisticStates.state;
-                                }
-
-                                // Apply attribute overrides
-                                if (Object.keys(entityOptimisticStates).length > 1) {
-                                    entity.attributes = Object.assign({}, entity.attributes);
-                                    for (const key in entityOptimisticStates) {
-                                        if (key !== "state") {
-                                            entity.attributes[key] = entityOptimisticStates[key];
-                                        }
-                                    }
-                                }
-                            }
-
-                            monitoredEntities.push(entity);
-                        }
-                    }
+                    const monitoredEntities = buildMonitoredEntities(parsedEntityIds, buildEntityMap(allEntities));
 
                     // 2. Only update the "heavy" list model if the structure changed
                     // (length changed or IDs changed)
@@ -972,20 +1105,28 @@ Singleton {
 
                     // Always update to ensure data flow, UI ListModel will handle smoothing
                     haAvailable = true;
+                    if (!canUseWebSocketApi()) {
+                        setConnectionState("degraded", "Using REST fallback");
+                    }
                     updateEntities(monitoredEntities);
+                    if (shouldEmitRefreshCompletion) refreshCompleted(true);
 
                 } catch (e) {
                     console.error("HomeAssistantMonitor: Failed to parse HA response:", e);
                     haAvailable = false;
                     PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
+                    setConnectionState("offline", "Failed to parse Home Assistant response");
                     // Keep old data, don't clear (consistent with network failure handling)
                     updateEntities(cachedAllEntities);
+                    if (shouldEmitRefreshCompletion) refreshCompleted(false);
                 }
             } else {
                 console.error("HomeAssistantMonitor: Failed to fetch entities");
                 // Keep old data, don't clear
                 haAvailable = false;
                 PluginService.setGlobalVar(pluginId, "haAvailable", false);
+                setConnectionState("offline", "Failed to fetch Home Assistant states");
+                if (shouldEmitRefreshCompletion) refreshCompleted(false);
             }
         });
     }
@@ -994,48 +1135,10 @@ Singleton {
         const parsedEntityIds = parseEntityIds();
         const monitoredEntities = [];
 
-        // Use cachedAllEntities if available
         if (cachedAllEntities && cachedAllEntities.length > 0) {
-            // Create a map for fast lookup
-            const entityMap = {};
-            for (const mapped of cachedAllEntities) {
-                entityMap[mapped.entityId] = mapped;
-            }
-
-            // Iterate ids in order and apply optimistic states
-            for (const id of parsedEntityIds) {
-                if (entityMap[id]) {
-                    let entity = entityMap[id];
-
-                    // Apply optimistic state overrides if present
-                    const entityOptimisticStates = optimisticStates[id];
-                    if (entityOptimisticStates) {
-                        // Create a shallow copy to avoid mutating cached entity
-                        entity = Object.assign({}, entity);
-
-                        // Apply state override
-                        if (entityOptimisticStates.state !== undefined) {
-                            entity.state = entityOptimisticStates.state;
-                        }
-
-                        // Apply attribute overrides
-                        if (Object.keys(entityOptimisticStates).length > 1) {
-                            entity.attributes = Object.assign({}, entity.attributes);
-                            for (const key in entityOptimisticStates) {
-                                if (key !== "state") {
-                                    entity.attributes[key] = entityOptimisticStates[key];
-                                }
-                            }
-                        }
-                    }
-
-                    monitoredEntities.push(entity);
-                }
-            }
-
+            monitoredEntities.push(...buildMonitoredEntities(parsedEntityIds, buildEntityMap(cachedAllEntities)));
             updateEntities(monitoredEntities);
         } else {
-            // Fallback if cache is empty
             refresh();
         }
     }
@@ -1044,6 +1147,12 @@ Singleton {
         PluginService.setGlobalVar(pluginId, "entities", entities);
         PluginService.setGlobalVar(pluginId, "entityCount", entities.length);
         PluginService.setGlobalVar(pluginId, "haAvailable", haAvailable);
+        PluginService.setGlobalVar(pluginId, "haConnectionStatus", connectionStatus);
+        PluginService.setGlobalVar(pluginId, "haConnectionMessage", connectionMessage);
+    }
+
+    function scheduleMonitoredEntitiesSync() {
+        monitoredEntitiesSyncTimer.restart();
     }
 
     function addEntityToMonitor(entityId) {
@@ -1063,8 +1172,7 @@ Singleton {
         
         if (addedCount > 0) {
             entityIds = ids.join(", ");
-            PluginService.savePluginData(pluginId, "entityIds", entityIds);
-            reprocessMonitoredEntities();
+            scheduleMonitoredEntitiesSync();
         }
     }
 
@@ -1074,14 +1182,13 @@ Singleton {
         if (index >= 0) {
             ids.splice(index, 1);
             entityIds = ids.join(", ");
-            PluginService.savePluginData(pluginId, "entityIds", entityIds);
 
             // Clear history cache for this entity
             const newCache = Object.assign({}, historyCache);
             delete newCache[entityId];
             historyCache = newCache;
 
-            reprocessMonitoredEntities();
+            scheduleMonitoredEntitiesSync();
         }
     }
 
@@ -1103,12 +1210,23 @@ Singleton {
         }
 
         entityIds = ids.join(", ");
-        PluginService.savePluginData(pluginId, "entityIds", entityIds);
-        reprocessMonitoredEntities();
+        scheduleMonitoredEntitiesSync();
+    }
+
+    function moveEntityToTop(entityId) {
+        let ids = parseEntityIds();
+        const index = ids.indexOf(entityId);
+        if (index <= 0) return;
+
+        const item = ids.splice(index, 1)[0];
+        ids.unshift(item);
+
+        entityIds = ids.join(", ");
+        scheduleMonitoredEntitiesSync();
     }
 
     function callService(domain, service, entityId, serviceData) {
-        if (socket && socket.status === root.wsOpen) {
+        if (canUseWebSocketApi()) {
             const msg = {
                 type: "call_service",
                 domain: domain,
@@ -1128,18 +1246,40 @@ Singleton {
                     msg.service_data.entity_id = entityId; 
                 }
             }
+
+            if (entityId) {
+                setEntityActionState(entityId, "pending", service, "", "request");
+            }
             
             sendWsMessage(msg, (response) => {
-                if (!response.success) {
-                    console.error("HomeAssistantMonitor: WebSocket Service call failed:", response.error ? response.error.message : "unknown error");
+                if (!response || response.success === false) {
+                    const errorMessage = formatServiceError(response, "Service call failed");
+                    console.error("HomeAssistantMonitor: WebSocket Service call failed:", errorMessage);
+                    if (entityId) {
+                        setEntityActionState(entityId, "error", service, errorMessage);
+                    }
+                    return;
                 }
-                // WebSocket will push state_changed event automatically
+
+                if (entityId) {
+                    const currentActionState = getEntityActionState(entityId);
+                    if (canAssumeImmediateSuccess(domain) || currentActionState.status === "idle") {
+                        setEntityActionState(entityId, "success", service, "");
+                    } else {
+                        setEntityActionState(entityId, "pending", service, "", "sync");
+                        // Keep pending until a state_changed event arrives or a later refresh syncs state.
+                        actionStateTimeoutTimer.start();
+                    }
+                }
             });
             return;
         }
 
         if (!hassUrl || !hassToken) {
             console.error("HomeAssistantMonitor: Cannot call service - HA not configured");
+            if (entityId) {
+                setEntityActionState(entityId, "error", service, "Home Assistant is not configured");
+            }
             return;
         }
 
@@ -1147,12 +1287,22 @@ Singleton {
         const data = serviceData || {};
         data.entity_id = entityId;
 
+        if (entityId) {
+            setEntityActionState(entityId, "pending", service, "", "request");
+        }
+
         makeRequest("POST", endpoint, data, (stdout, exitCode) => {
             if (exitCode === 0) {
+                if (entityId) {
+                    setEntityActionState(entityId, "success", service, "");
+                }
                 // Refresh only this entity to avoid UI jitter
                 fetchEntity(entityId); 
             } else {
                 console.error("HomeAssistantMonitor: Service call failed");
+                if (entityId) {
+                    setEntityActionState(entityId, "error", service, "Service call failed");
+                }
             }
         });
     }
@@ -1234,8 +1384,19 @@ Singleton {
         callService("light", "turn_on", entityId, {brightness: Math.round(brightness)});
     }
 
-    function setColorTemp(entityId, colorTempMireds) {
-        callService("light", "turn_on", entityId, {color_temp: Math.round(colorTempMireds)});
+    function setColorTemp(entityId, colorTempValue) {
+        const cachedEntity = getCachedEntity(entityId);
+        const attrs = cachedEntity && cachedEntity.attributes ? cachedEntity.attributes : {};
+        const supportsKelvinOnly = (attrs.color_temp_kelvin !== undefined || attrs.min_color_temp_kelvin !== undefined || attrs.max_color_temp_kelvin !== undefined) &&
+            (attrs.color_temp === undefined || attrs.color_temp === null);
+
+        if (supportsKelvinOnly) {
+            callService("light", "turn_on", entityId, {color_temp_kelvin: Math.round(colorTempValue)});
+            return;
+        }
+
+        const mireds = Math.round(1000000 / Math.max(1, colorTempValue));
+        callService("light", "turn_on", entityId, {color_temp: mireds});
     }
 
     function setLightEffect(entityId, effect) {
@@ -1356,6 +1517,8 @@ Singleton {
     signal optimisticStateChanged(string entityId, string key, var value)
     signal pendingConfirmationResolved(string entityId)  // New signal when 1s passes
     signal entityDataChanged(string entityId)  // Unified signal when any entity data changes
+    signal entityActionStateChanged(string entityId)
+    signal refreshCompleted(bool success)
 
     function setOptimisticState(entityId, key, value) {
         var states = Object.assign({}, optimisticStates);
@@ -1419,37 +1582,25 @@ Singleton {
 
     // Get the actual state from cachedAllEntities (without optimistic state)
     function getActualState(entityId) {
-        if (!cachedAllEntities) return null;
-        for (var i = 0; i < cachedAllEntities.length; i++) {
-            if (cachedAllEntities[i].entityId === entityId) {
-                return cachedAllEntities[i].state;
-            }
-        }
-        return null;
+        const entity = getCachedEntity(entityId);
+        return entity ? entity.state : null;
     }
 
     // Get complete entity data with all states applied (optimistic, pending confirmation, etc.)
     // This is the unified interface for UI components to get entity data
     function getEntityData(entityId) {
-        if (!cachedAllEntities) return null;
+        const base = getCachedEntity(entityId);
+        if (!base) return null;
 
-        for (var i = 0; i < cachedAllEntities.length; i++) {
-            if (cachedAllEntities[i].entityId === entityId) {
-                const base = cachedAllEntities[i];
-                const effectiveState = getEffectiveValue(entityId, "state", base.state);
-
-                return {
-                    entityId: base.entityId,
-                    state: effectiveState,
-                    domain: base.domain,
-                    friendlyName: base.friendlyName,
-                    unitOfMeasurement: base.unitOfMeasurement || "",
-                    attributes: base.attributes || {},
-                    lastUpdated: base.lastUpdated
-                };
-            }
-        }
-        return null;
+        return {
+            entityId: base.entityId,
+            state: getEffectiveValue(entityId, "state", base.state),
+            domain: base.domain,
+            friendlyName: base.friendlyName,
+            unitOfMeasurement: base.unitOfMeasurement || "",
+            attributes: base.attributes || {},
+            lastUpdated: base.lastUpdated
+        };
     }
 
     // Timer to check for pending confirmations that have exceeded the delay
@@ -1468,13 +1619,12 @@ Singleton {
             for (var entityId in pending) {
                 var entry = pending[entityId];
                 if (!entry.confirmed && (now - entry.timestamp >= Components.HassConstants.confirmationDelay)) {
-                    // 1 second passed, resolve this confirmation
+                    // Confirmation window elapsed. Keep the optimistic state until
+                    // a real HA update confirms or overrides it, otherwise the UI
+                    // briefly snaps back to the stale actual state.
                     entry.confirmed = true;
                     changed = true;
                     resolvedEntities.push(entityId);
-
-                    // Clear the optimistic state
-                    _clearOptimisticState(entityId, "state");
                 }
             }
 
@@ -1546,43 +1696,107 @@ Singleton {
         }
     }
 
+    Timer {
+        id: actionStateCleanupTimer
+        interval: 300
+        repeat: true
+        running: false
+        onTriggered: {
+            const now = Date.now();
+            var nextStates = Object.assign({}, entityActionStates);
+            var changedIds = [];
+            var changed = false;
+
+            for (var entityId in nextStates) {
+                const entry = nextStates[entityId];
+                if (!entry) continue;
+                if ((entry.status === "success" || entry.status === "error") &&
+                    now - entry.updatedAt >= 3000) {
+                    delete nextStates[entityId];
+                    changedIds.push(entityId);
+                    changed = true;
+                }
+            }
+
+            if (changed) {
+                entityActionStates = nextStates;
+                PluginService.setGlobalVar(pluginId, "haEntityActionStates", entityActionStates);
+                for (var i = 0; i < changedIds.length; i++) {
+                    entityActionStateChanged(changedIds[i]);
+                    entityDataChanged(changedIds[i]);
+                }
+            }
+
+            if (Object.keys(entityActionStates).length === 0) {
+                stop();
+            }
+        }
+    }
+
+    Timer {
+        id: actionStateTimeoutTimer
+        interval: 500
+        repeat: true
+        running: false
+        onTriggered: {
+            const now = Date.now();
+            var timedOutIds = [];
+
+            for (var entityId in entityActionStates) {
+                const entry = entityActionStates[entityId];
+                if (entry && entry.status === "pending" && entry.phase === "sync" && now - entry.updatedAt >= 5000) {
+                    timedOutIds.push({
+                        entityId: entityId,
+                        action: entry.action
+                    });
+                }
+            }
+
+            for (var i = 0; i < timedOutIds.length; i++) {
+                setEntityActionState(
+                    timedOutIds[i].entityId,
+                    "success",
+                    timedOutIds[i].action,
+                    "Action sent, waiting for Home Assistant state sync"
+                );
+            }
+
+            if (Object.keys(entityActionStates).every(function(id) {
+                return !(entityActionStates[id].status === "pending" && entityActionStates[id].phase === "sync");
+            })) {
+                stop();
+            }
+        }
+    }
+
     // Updates a single entity's state in the local cache and global vars
     // avoiding a full refresh and preventing UI jitter
     function updateEntityState(entityId, newStateStr, newAttributes) {
-        // 1. Update in cachedAllEntities
-        if (cachedAllEntities) {
-            for (let i = 0; i < cachedAllEntities.length; i++) {
-                if (cachedAllEntities[i].entityId === entityId) {
-                    let e = cachedAllEntities[i];
+        const cachedEntity = getCachedEntity(entityId);
+        if (cachedEntity) {
+            const nextEntity = Object.assign({}, cachedEntity);
+            if (newStateStr !== undefined) nextEntity.state = newStateStr;
+            if (newAttributes !== undefined) {
+                nextEntity.attributes = Object.assign({}, nextEntity.attributes, newAttributes);
+            }
+            nextEntity.lastUpdated = new Date().toISOString();
+            upsertCachedEntity(nextEntity);
 
-                    if (newStateStr !== undefined) e.state = newStateStr;
-                    if (newAttributes !== undefined) {
-                         e.attributes = Object.assign({}, e.attributes, newAttributes);
+            if (optimisticStates[entityId]) {
+                if (newStateStr !== undefined && optimisticStates[entityId]["state"] !== undefined) {
+                    if (String(optimisticStates[entityId]["state"]) === String(newStateStr)) {
+                        _clearOptimisticState(entityId, "state");
                     }
-                    e.lastUpdated = new Date().toISOString();
+                }
 
-                    // Check and clear optimistic states
-                    if (optimisticStates[entityId]) {
-                        // Check state
-                        if (newStateStr !== undefined && optimisticStates[entityId]["state"] !== undefined) {
-                            if (String(optimisticStates[entityId]["state"]) === String(newStateStr)) {
-                                _clearOptimisticState(entityId, "state");
-                            }
-                        }
-
-                        // Check attributes
-                        if (newAttributes !== undefined) {
-                            for (var key in newAttributes) {
-                                if (optimisticStates[entityId] && optimisticStates[entityId][key] !== undefined) {
-                                    if (String(optimisticStates[entityId][key]) === String(newAttributes[key])) {
-                                        _clearOptimisticState(entityId, key);
-                                    }
-                                }
+                if (newAttributes !== undefined) {
+                    for (var key in newAttributes) {
+                        if (optimisticStates[entityId] && optimisticStates[entityId][key] !== undefined) {
+                            if (String(optimisticStates[entityId][key]) === String(newAttributes[key])) {
+                                _clearOptimisticState(entityId, key);
                             }
                         }
                     }
-
-                    break;
                 }
             }
         }

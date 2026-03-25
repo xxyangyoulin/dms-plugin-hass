@@ -111,7 +111,7 @@ Column {
             step: parent.selectorConfig.step || 1
             icon: "tune"
             displayValue: Math.round(value) + (parent.selectorConfig.unit_of_measurement || "")
-            onChanged: (v) => {
+            onDragFinished: (v) => {
                 const data = {};
                 data[parent.fieldName] = v;
                 HomeAssistantService.callService(root.domain, parent.serviceName, entityData.entityId, data);

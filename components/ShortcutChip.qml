@@ -10,29 +10,28 @@ StyledRect {
     
     required property var shortcutData // { id, name, domain }
     property bool isEditing: false
-    property bool isSelected: false
     property bool isRenaming: false
+    readonly property color hoverTintColor: Theme.primary || Theme.surfaceText
 
     signal requestDelete()
     signal requestRename(string newName)
-    signal requestEdit()
     signal longPressed()
-    signal requestSelect()
     signal requestMove(int offset)
 
     // Safety check
     visible: shortcutData !== undefined && shortcutData !== null
 
     // Use implicit size to suggest size to layout
-    implicitWidth: isEditing ? Math.max(140, row.implicitWidth + Theme.spacingS * 2) : Math.max(100, row.implicitWidth + Theme.spacingS * 2)
-    implicitHeight: 42
-    height: 42
-    radius: 21
+    implicitWidth: isEditing ? Math.max(144, row.implicitWidth + Theme.spacingM * 2) : Math.max(104, row.implicitWidth + Theme.spacingM * 2)
+    implicitHeight: 40
+    height: 40
+    radius: 20
 
-    // Visual feedback for edit mode
-    color: isSelected ? (Theme.primary || "transparent") : (isEditing ? Theme.surfaceContainerHigh : (mouseArea.containsMouse ? Theme.surfaceContainerHigh : Theme.surfaceContainer))
-    border.width: isSelected ? 2 : (isEditing ? 1 : (mouseArea.containsMouse ? 1 : 0))
-    border.color: isSelected ? (Theme.primary || "transparent") : (isEditing ? (Theme.primary || "transparent") : (mouseArea.containsMouse ? (Theme.primary || "transparent") : "transparent"))
+    color: Theme.surfaceContainerLow || Theme.surfaceContainer
+    border.width: 1
+    border.color: mouseArea.containsMouse
+        ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2)
+        : (isEditing ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2) : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18))
 
     Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
     Behavior on color { ColorAnimation { duration: 150 } }
@@ -51,78 +50,97 @@ StyledRect {
         anchors.centerIn: parent
         spacing: Theme.spacingS
         visible: parent.visible
+        z: 2
         
         DankIcon {
             name: parent.visible ? HassConstants.getIconForDomain(shortcutData.domain) : ""
-            size: 16
-            color: Theme.primary || "transparent"
+            size: 15
+            color: Theme.surfaceVariantText
             anchors.verticalCenter: parent.verticalCenter
         }
-        
-        // Editable Text
-        TextInput {
-            id: nameInput
+
+        StyledText {
+            visible: !root.isRenaming
             text: parent.visible ? shortcutData.name : ""
             font.pixelSize: Theme.fontSizeSmall
             font.weight: Font.Medium
             color: Theme.surfaceText
             anchors.verticalCenter: parent.verticalCenter
-
-            // Constrain text width with elision
             width: isEditing ? 80 : Math.min(root.width - 40, implicitWidth)
+            maximumLineCount: 1
+            elide: Text.ElideRight
+        }
+
+        TextInput {
+            id: nameInput
+            visible: root.isRenaming
+            text: parent.visible ? shortcutData.name : ""
+            font.pixelSize: Theme.fontSizeSmall
+            font.weight: Font.Medium
+            color: Theme.surfaceText
+            anchors.verticalCenter: parent.verticalCenter
+            width: 80
             clip: true
 
-            readOnly: !isRenaming
-            selectByMouse: isRenaming
-            activeFocusOnPress: isRenaming
-
-            // Allow clicking through when not editing
-            visible: true
+            enabled: root.isRenaming
+            readOnly: !root.isRenaming
+            selectByMouse: root.isRenaming
+            activeFocusOnPress: root.isRenaming
 
             onEditingFinished: {
-                isRenaming = false
+                root.isRenaming = false
                 root.requestRename(text)
             }
 
             onActiveFocusChanged: {
-                if (!activeFocus) {
-                    isRenaming = false
+                if (!activeFocus && root.isRenaming) {
+                    root.isRenaming = false
+                    root.requestRename(text)
                 }
             }
         }
     }
 
+    Rectangle {
+        anchors.fill: parent
+        radius: parent.radius
+        color: root.hoverTintColor
+        opacity: mouseArea.containsMouse ? 0.08 : 0
+        z: 1
+        Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+    }
+
     // Edit Controls Overlay
     Row {
         anchors.right: parent.right
-        anchors.rightMargin: 4
+        anchors.rightMargin: 6
         anchors.verticalCenter: parent.verticalCenter
         spacing: 2
         visible: isEditing
         z: 10
 
         EditActionButton {
-            width: 20; height: 20
+            width: 18; height: 18
             iconName: "chevron_left"
-            iconSize: 14
+            iconSize: 12
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
             onClicked: root.requestMove(-1)
         }
 
         EditActionButton {
-            width: 20; height: 20
+            width: 18; height: 18
             iconName: "chevron_right"
-            iconSize: 14
+            iconSize: 12
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
             onClicked: root.requestMove(1)
         }
 
         EditActionButton {
-            width: 20; height: 20
+            width: 18; height: 18
             iconName: "close"
-            iconSize: 12
+            iconSize: 11
             iconColor: Theme.primaryText
             backgroundColor: Theme.error || "transparent"
             onClicked: root.requestDelete()
@@ -156,16 +174,11 @@ StyledRect {
                 isRenaming = true
                 nameInput.forceActiveFocus()
                 nameInput.selectAll()
-            } else {
-                root.requestEdit()
             }
         }
 
         onClicked: {
-            if (isEditing) {
-                // In edit mode, clicking selects the chip for keyboard reordering
-                root.requestSelect();
-            } else {
+            if (!isEditing) {
                 // Normal mode: trigger action
                 if (!shortcutData) return;
 

@@ -7,42 +7,75 @@ import "../"
 import "../../services"
 
 Column {
-    // Tilt position could be added here later
-
     id: root
 
     required property var entityData
+    property var sections: []
 
-    function getVal(attr, def) {
-        return EntityHelper.getEffectiveValue(entityData, attr, def);
+    function refreshSections() {
+        const latestEntityData = entityData && entityData.entityId
+            ? (HomeAssistantService.getEntityData(entityData.entityId) || entityData)
+            : entityData;
+        sections = EntityControlResolver.getCoverSections(latestEntityData);
     }
 
     width: parent.width
     spacing: Theme.spacingS
 
-    Column {
-        width: parent.width
-        spacing: Theme.spacingS
-        visible: root.getVal("current_position", undefined) !== undefined
+    onEntityDataChanged: refreshSections()
+    Component.onCompleted: refreshSections()
 
-        StyledText {
-            text: I18n.tr("Position", "Control label")
-            font.pixelSize: Theme.fontSizeSmall
-            color: Theme.surfaceVariantText
+    Connections {
+        target: HomeAssistantService
+
+        function onEntityDataChanged(entityId) {
+            if (root.entityData && root.entityData.entityId === entityId)
+                root.refreshSections();
         }
-
-        GenericSlider {
-            width: parent.width
-            value: root.getVal("current_position", 0)
-            maxValue: 100
-            icon: "roller_shades"
-            onChanged: (v) => {
-                HomeAssistantService.setOptimisticState(entityData.entityId, "current_position", v);
-                HomeAssistantService.setCoverPosition(entityData.entityId, v);
-            }
-            displayValue: value + "%"
-        }
-
     }
 
+    Repeater {
+        model: root.sections
+
+        delegate: Loader {
+            required property var modelData
+
+            width: root.width
+            property var section: modelData
+            onLoaded: {
+                if (item)
+                    item.section = section;
+            }
+            sourceComponent: section.type === "position" ? positionSection : null
+        }
+    }
+
+    Component {
+        id: positionSection
+
+        Column {
+            property var section
+
+            width: root.width
+            spacing: Theme.spacingS
+
+            StyledText {
+                text: I18n.tr("Position", "Control label")
+                font.pixelSize: Theme.fontSizeSmall
+                color: Theme.surfaceVariantText
+            }
+
+            GenericSlider {
+                width: parent.width
+                value: parent.section.value
+                maxValue: parent.section.maxValue
+                icon: parent.section.icon
+                displayValue: parent.section.displayValue
+                onDragFinished: (v) => {
+                    HomeAssistantService.setOptimisticState(root.entityData.entityId, "current_position", v);
+                    HomeAssistantService.setCoverPosition(root.entityData.entityId, v);
+                }
+            }
+        }
+    }
 }
