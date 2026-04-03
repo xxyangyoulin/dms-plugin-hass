@@ -32,6 +32,11 @@ PluginComponent {
     readonly property int rightColumnWidth: compactContentWidth
     readonly property int browserColumnWidth: 360
     readonly property int expandedPopoutWidth: rightColumnWidth + browserColumnWidth + Theme.spacingS + Theme.spacingM * 2
+    readonly property bool useStackedEditLayout: showEntityBrowser && CompositorService.isNiri
+    readonly property int activePopoutWidth: useStackedEditLayout
+        ? compactPopoutWidth
+        : (showEntityBrowser ? expandedPopoutWidth : compactPopoutWidth)
+    readonly property int activePopoutHeight: isEditing ? 800 : 600
 
     property bool isEditing: false // Global edit mode state
     property bool manualRefreshInProgress: false
@@ -556,8 +561,8 @@ PluginComponent {
     popoutContent: Component {
         FocusScope {
             id: popoutScope
-            implicitWidth: root.showEntityBrowser ? root.expandedPopoutWidth : root.compactPopoutWidth
-            implicitHeight: 600
+            implicitWidth: root.activePopoutWidth
+            implicitHeight: root.activePopoutHeight
             focus: true
             
             // Content is immediately ready - no delay to avoid blank screen
@@ -630,64 +635,77 @@ PluginComponent {
 
                 Item {
                     id: contentFrame
-                    width: root.showEntityBrowser
+                    readonly property real stackedBrowserHeight: root.useStackedEditLayout
+                        ? Math.min(240, Math.max(180, height * 0.38))
+                        : 0
+                    readonly property real stackedListOffset: root.showEntityBrowser && root.useStackedEditLayout
+                        ? stackedBrowserHeight + Theme.spacingS
+                        : 0
+                    width: root.useStackedEditLayout
+                        ? root.compactContentWidth
+                        : (root.showEntityBrowser
                         ? root.browserColumnWidth + Theme.spacingS + root.rightColumnWidth
-                        : root.compactContentWidth
+                        : root.compactContentWidth)
                     height: parent.height - overviewPanel.height - Theme.spacingS
                     anchors.horizontalCenter: parent.horizontalCenter
 
-                    Row {
-                        id: contentRow
-                        anchors.fill: parent
-                        spacing: Theme.spacingS
+                    Item {
+                        id: browserPaneContainer
+                        width: root.showEntityBrowser
+                            ? (root.useStackedEditLayout ? parent.width : root.browserColumnWidth)
+                            : 0
+                        height: root.showEntityBrowser
+                            ? (root.useStackedEditLayout ? contentFrame.stackedBrowserHeight : parent.height)
+                            : 0
+                        visible: root.showEntityBrowser
+                        x: 0
+                        y: 0
 
-                        Item {
-                            width: root.showEntityBrowser ? root.browserColumnWidth : 0
-                            height: parent.height
-                            visible: root.showEntityBrowser
-
-                            HomeAssistantBrowserPane {
-                                anchors.fill: parent
-                                visiblePane: root.showEntityBrowser
-                                contentReady: popoutScope.contentReady
-                                browseMode: root.browseMode
-                                searchText: root.entitySearchText
-                                deviceModel: root.entityDevices
-                                moreInfoModel: root.moreInfoDomains
-                                monitoredEntityIds: root.monitoredEntityIds
-
-                                onRequestToggleMonitor: entityId => root.toggleMonitorEntity(entityId)
-                                onRequestBrowseModeChange: mode => root.browseMode = mode
-                                onRequestSearchTextChange: text => root.entitySearchText = text
-                            }
-                        }
-
-                        HomeAssistantEntityListPane {
-                            id: rightColumn
-                            width: root.rightColumnWidth
-                            height: parent.height
-                            entities: globalEntities.value || []
-                            haAvailable: !!globalHaAvailable.value
-                            globalEntityCount: globalEntityCount.value !== undefined ? globalEntityCount.value : 0
-                            connectionStatus: globalConnectionStatus.value || "offline"
-                            connectionMessage: globalConnectionMessage.value || ""
+                        HomeAssistantBrowserPane {
+                            anchors.fill: parent
+                            visiblePane: root.showEntityBrowser
                             contentReady: popoutScope.contentReady
-                            isEditing: root.isEditing
-                            keyboardNavigationActive: root.keyboardNavigationActive
-                            selectedEntityId: root.selectedEntityId
-                            pinnedEntityIds: root.pinnedEntities
-                            expandedEntities: root.expandedEntities
-                            showEntityDetails: root.showEntityDetails
-                            showAttributes: root.showAttributes
-                            customIcons: root.customIcons
+                            browseMode: root.browseMode
+                            searchText: root.entitySearchText
+                            deviceModel: root.entityDevices
+                            moreInfoModel: root.moreInfoDomains
+                            monitoredEntityIds: root.monitoredEntityIds
 
-                            onRequestListView: listView => root.entityListView = listView
-                            onRequestToggleExpand: entityId => root.toggleEntity(entityId)
-                            onRequestTogglePin: entityId => root.togglePinEntity(entityId)
-                            onRequestToggleDetails: entityId => root.toggleEntityDetails(entityId)
-                            onRequestRemoveEntity: entityId => HomeAssistantService.removeEntityFromMonitor(entityId)
-                            onRequestOpenIconPicker: entityId => root.openIconPicker(entityId)
+                            onRequestToggleMonitor: entityId => root.toggleMonitorEntity(entityId)
+                            onRequestBrowseModeChange: mode => root.browseMode = mode
+                            onRequestSearchTextChange: text => root.entitySearchText = text
                         }
+                    }
+
+                    HomeAssistantEntityListPane {
+                        id: rightColumn
+                        width: root.useStackedEditLayout ? parent.width : root.rightColumnWidth
+                        height: parent.height - contentFrame.stackedListOffset
+                        x: root.showEntityBrowser && !root.useStackedEditLayout
+                            ? root.browserColumnWidth + Theme.spacingS
+                            : 0
+                        y: contentFrame.stackedListOffset
+                        entities: globalEntities.value || []
+                        haAvailable: !!globalHaAvailable.value
+                        globalEntityCount: globalEntityCount.value !== undefined ? globalEntityCount.value : 0
+                        connectionStatus: globalConnectionStatus.value || "offline"
+                        connectionMessage: globalConnectionMessage.value || ""
+                        contentReady: popoutScope.contentReady
+                        isEditing: root.isEditing
+                        keyboardNavigationActive: root.keyboardNavigationActive
+                        selectedEntityId: root.selectedEntityId
+                        pinnedEntityIds: root.pinnedEntities
+                        expandedEntities: root.expandedEntities
+                        showEntityDetails: root.showEntityDetails
+                        showAttributes: root.showAttributes
+                        customIcons: root.customIcons
+
+                        onRequestListView: listView => root.entityListView = listView
+                        onRequestToggleExpand: entityId => root.toggleEntity(entityId)
+                        onRequestTogglePin: entityId => root.togglePinEntity(entityId)
+                        onRequestToggleDetails: entityId => root.toggleEntityDetails(entityId)
+                        onRequestRemoveEntity: entityId => HomeAssistantService.removeEntityFromMonitor(entityId)
+                        onRequestOpenIconPicker: entityId => root.openIconPicker(entityId)
                     }
                 }
             }
@@ -710,6 +728,6 @@ PluginComponent {
         }
     }
 
-    popoutWidth: root.showEntityBrowser ? root.expandedPopoutWidth : root.compactPopoutWidth
-    popoutHeight: 600
+    popoutWidth: root.activePopoutWidth
+    popoutHeight: root.activePopoutHeight
 }
