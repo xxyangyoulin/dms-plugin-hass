@@ -14,7 +14,7 @@ Monitor and control your Home Assistant entities directly from your status bar.
 
 ## Requirements
 
-- **System Package**: `qt6-websockets` is required for operation.
+- **System Package**: `qt6-websockets`(`qt6-qtwebsockets-devel` for Fedora) is required for operation. 
 - **Home Assistant WebSocket API**: Must be accessible (usually enabled by default).
 - Long-lived access token.
 
