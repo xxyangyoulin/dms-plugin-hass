@@ -239,6 +239,8 @@ QtObject {
         const sections = [];
 
         if (HassConstants.supportsFeature(entityData, HassConstants.fanFeature.SET_SPEED)) {
+            const state = EntityHelper.getEffectiveValue(entityData, "state", "");
+            const isOn = state === "on";
             const percentage = EntityHelper.getEffectiveValue(entityData, "percentage", 0);
             const percentageStep = EntityHelper.getEffectiveValue(entityData, "percentage_step", 1);
             if (HassConstants.fanShouldUseButtons(entityData)) {
@@ -250,17 +252,17 @@ QtObject {
                 }
                 sections.push({
                     type: "speed_buttons",
-                    value: percentage,
+                    value: isOn ? percentage : null,
                     options: options
                 });
             } else {
                 sections.push({
                     type: "speed_slider",
-                    value: percentage,
+                    value: isOn ? percentage : 0,
                     step: percentageStep,
                     maxValue: 100,
                     icon: controlConfig.fan.speedIcon,
-                    displayValue: Math.round(percentage) + "%"
+                    displayValue: (isOn ? Math.round(percentage) : 0) + "%"
                 });
             }
         }

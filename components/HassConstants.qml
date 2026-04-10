@@ -81,8 +81,8 @@ QtObject {
     // Timings
     readonly property int optimisticTimeout: 3000
     readonly property int optimisticCleanupInterval: 2000
-    readonly property int optimisticStateTimeout: 30000
-    readonly property int confirmationDelay: 1000  // 1 second delay for pending confirmations
+    readonly property int optimisticStateTimeout: 8000
+    readonly property int confirmationDelay: 1500  // 1.5 second delay for pending confirmations
     readonly property int refreshDelay: 500
     readonly property int historyHours: 24
     readonly property int historyCacheDuration: 300000  // 5 minutes
@@ -223,6 +223,8 @@ QtObject {
             return state === "on" ? theme.warning : theme.surfaceVariantText;
         } else if (domain === "climate") {
             return state !== "off" ? theme.primary : theme.surfaceVariantText;
+        } else if (domain === "fan") {
+            return state === "on" ? theme.primary : theme.surfaceVariantText;
         } else if (domain === "cover") {
             return state === "open" ? theme.primary : theme.surfaceVariantText;
         } else if (domain === "lock") {

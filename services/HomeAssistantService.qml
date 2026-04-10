@@ -764,17 +764,24 @@ Singleton {
 
         // Check if we have a pending confirmation for this entity
         const pendingEntry = pendingConfirmations[entityId];
-        if (pendingEntry && !pendingEntry.confirmed) {
-            // Update the actual state in pending confirmation, but don't trigger UI update yet
-            var pending = Object.assign({}, pendingConfirmations);
-            pending[entityId].actualState = actualState;
-            pending[entityId].lastActualTimestamp = Date.now();
-            pendingConfirmations = pending;
-
-            // Store actual state in cache (not modified by optimistic state)
+        if (pendingEntry) {
             upsertCachedEntity(mapped);
 
-            // Don't trigger batch update - wait for confirmation timer
+            if (String(actualState) === String(pendingEntry.optimisticState)) {
+                var resolvedPending = Object.assign({}, pendingConfirmations);
+                delete resolvedPending[entityId];
+                pendingConfirmations = resolvedPending;
+
+                reconcileOptimisticState(entityId, actualState, mapped.attributes);
+                reprocessMonitoredEntities();
+                entityDataChanged(entityId);
+                return;
+            }
+
+            var pending = Object.assign({}, pendingConfirmations);
+            pending[entityId].actualState = actualState;
+            pending[entityId].actualAttributes = mapped.attributes;
+            pendingConfirmations = pending;
             return;
         }
 
@@ -797,14 +804,60 @@ Singleton {
                 entityDataChanged(entityId);
                 return;
             }
-            // Else: states don't match - keep optimistic state (will be applied later)
         }
 
         // Store actual state in cache (not modified by optimistic state)
         upsertCachedEntity(mapped);
+        reconcileOptimisticState(entityId, actualState, mapped.attributes);
 
         // Trigger batch update for monitored list
         batchUpdateTimer.start();
+    }
+
+    function reconcileOptimisticState(entityId, actualState, actualAttributes) {
+        const entityOptimisticStates = optimisticStates[entityId];
+        if (!entityOptimisticStates) {
+            return;
+        }
+
+        var keysToClear = [];
+
+        if (actualState !== undefined && entityOptimisticStates.state !== undefined) {
+            keysToClear.push("state");
+        }
+
+        if (actualAttributes !== undefined && actualAttributes !== null) {
+            for (var key in actualAttributes) {
+                if (entityOptimisticStates[key] !== undefined) {
+                    keysToClear.push(key);
+                }
+            }
+        }
+
+        for (var i = 0; i < keysToClear.length; i++) {
+            _clearOptimisticState(entityId, keysToClear[i], false);
+        }
+
+        if (keysToClear.length > 0) {
+            entityDataChanged(entityId);
+        }
+    }
+
+    function optimisticAttributeMatchesActual(key, optimisticValue, actualAttributes) {
+        if (!actualAttributes || optimisticValue === undefined) {
+            return false;
+        }
+
+        if (actualAttributes[key] !== undefined) {
+            return String(actualAttributes[key]) === String(optimisticValue);
+        }
+
+        if (key === "color_temp_kelvin" && actualAttributes.color_temp !== undefined) {
+            const actualKelvin = Math.round(1000000 / Math.max(1, actualAttributes.color_temp));
+            return String(actualKelvin) === String(Math.round(optimisticValue));
+        }
+
+        return false;
     }
 
     // Helper function to clear optimistic state and emit signal
@@ -1235,16 +1288,7 @@ Singleton {
             };
             
             if (entityId) {
-                // Compatibility Fix: For media_player (and potentially others), 
-                // some integrations fail if 'target' is present.
-                // We default to 'target' for modern standard, but fallback for specific domains.
-                if (domain === "media_player") {
-                    msg.service_data.entity_id = entityId;
-                } else {
-                    msg.target = { entity_id: entityId };
-                    // Keep dual injection for others just in case, unless it causes issues
-                    msg.service_data.entity_id = entityId; 
-                }
+                msg.service_data.entity_id = entityId;
             }
 
             if (entityId) {
@@ -1257,6 +1301,7 @@ Singleton {
                     console.error("HomeAssistantMonitor: WebSocket Service call failed:", errorMessage);
                     if (entityId) {
                         setEntityActionState(entityId, "error", service, errorMessage);
+                        fetchEntity(entityId);
                     }
                     return;
                 }
@@ -1302,6 +1347,7 @@ Singleton {
                 console.error("HomeAssistantMonitor: Service call failed");
                 if (entityId) {
                     setEntityActionState(entityId, "error", service, "Service call failed");
+                    fetchEntity(entityId);
                 }
             }
         });
@@ -1426,8 +1472,13 @@ Singleton {
     }
 
     function setFanSpeed(entityId, percentage) {
-        // Don't round - HA expects exact step values (e.g., 33.33, 66.66, 100)
-        callService("fan", "set_percentage", entityId, {percentage: percentage});
+        if (percentage > 0) {
+            // Use explicit turn_on semantics so HA controls both power state and speed.
+            callService("fan", "turn_on", entityId, {percentage: percentage});
+            return;
+        }
+
+        callService("fan", "turn_off", entityId, {});
     }
 
     function setOscillating(entityId, oscillating) {
@@ -1510,8 +1561,9 @@ Singleton {
     property var optimisticStates: ({})
     property var optimisticTimestamps: ({})
 
-    // Pending confirmations: entities waiting for WebSocket confirmation
-    // Structure: { "entityId": { optimisticState: "on", actualState: "off", timestamp: 123, confirmed: false } }
+    // Pending confirmations: entities waiting for a short confirmation window
+    // before cached HA values are allowed to override the optimistic state.
+    // Structure: { "entityId": { optimisticState: "on", actualState: "off", actualAttributes: {}, timestamp: 123 } }
     property var pendingConfirmations: ({})
 
     signal optimisticStateChanged(string entityId, string key, var value)
@@ -1538,21 +1590,17 @@ Singleton {
             var pending = Object.assign({}, pendingConfirmations);
             var actualState = getActualState(entityId);
 
-            // If there's already a pending confirmation for this entity,
-            // update it and reset the timestamp (extend the window to 1s from now)
-            if (pending[entityId] && !pending[entityId].confirmed) {
-                // Update existing pending confirmation, reset timestamp to 1s from now
+            if (pending[entityId]) {
                 pending[entityId].optimisticState = value;
                 pending[entityId].actualState = actualState;
-                pending[entityId].timestamp = Date.now();  // Reset to new 1s window
-                // Note: we keep the latest actual state
+                pending[entityId].actualAttributes = null;
+                pending[entityId].timestamp = Date.now();
             } else {
-                // Create new pending confirmation
                 pending[entityId] = {
                     optimisticState: value,
                     actualState: actualState,
-                    timestamp: Date.now(),
-                    confirmed: false
+                    actualAttributes: null,
+                    timestamp: Date.now()
                 };
             }
             pendingConfirmations = pending;
@@ -1568,7 +1616,7 @@ Singleton {
 
     function getEffectiveValue(entityId, attribute, realValue) {
         // Check pending confirmations first (1s delay period)
-        if (pendingConfirmations[entityId] && !pendingConfirmations[entityId].confirmed) {
+        if (pendingConfirmations[entityId]) {
             if (attribute === "state") {
                 return pendingConfirmations[entityId].optimisticState;
             }
@@ -1615,14 +1663,22 @@ Singleton {
             var pending = Object.assign({}, pendingConfirmations);
             var changed = false;
             var resolvedEntities = [];
+            var overridesToApply = [];
 
             for (var entityId in pending) {
                 var entry = pending[entityId];
-                if (!entry.confirmed && (now - entry.timestamp >= Components.HassConstants.confirmationDelay)) {
-                    // Confirmation window elapsed. Keep the optimistic state until
-                    // a real HA update confirms or overrides it, otherwise the UI
-                    // briefly snaps back to the stale actual state.
-                    entry.confirmed = true;
+                if (now - entry.timestamp >= Components.HassConstants.confirmationDelay) {
+                    if (entry.actualState !== undefined &&
+                        entry.actualState !== null &&
+                        String(entry.actualState) !== String(entry.optimisticState)) {
+                        overridesToApply.push({
+                            entityId: entityId,
+                            actualState: entry.actualState,
+                            actualAttributes: entry.actualAttributes
+                        });
+                    }
+
+                    delete pending[entityId];
                     changed = true;
                     resolvedEntities.push(entityId);
                 }
@@ -1630,28 +1686,25 @@ Singleton {
 
             if (changed) {
                 pendingConfirmations = pending;
+                for (var j = 0; j < overridesToApply.length; j++) {
+                    reconcileOptimisticState(
+                        overridesToApply[j].entityId,
+                        overridesToApply[j].actualState,
+                        overridesToApply[j].actualAttributes
+                    );
+                }
+                if (overridesToApply.length > 0) {
+                    reprocessMonitoredEntities();
+                }
                 // Notify that pending confirmations are resolved
                 for (var i = 0; i < resolvedEntities.length; i++) {
                     pendingConfirmationResolved(resolvedEntities[i]);
                 }
             }
 
-            // Stop timer if no more pending confirmations
-            if (Object.keys(pendingConfirmations).length === 0 ||
-                Object.keys(pendingConfirmations).every(function(id) { return pendingConfirmations[id].confirmed; })) {
+            if (Object.keys(pendingConfirmations).length === 0) {
                 running = false;
-                // Clear fully confirmed entries
-                var cleaned = {};
-                for (var entityId2 in pendingConfirmations) {
-                    if (!pendingConfirmations[entityId2].confirmed) {
-                        cleaned[entityId2] = pendingConfirmations[entityId2];
-                    }
-                }
-                if (Object.keys(cleaned).length === 0) {
-                    pendingConfirmations = {};
-                } else {
-                    pendingConfirmations = cleaned;
-                }
+                pendingConfirmations = {};
             }
         }
     }
@@ -1792,9 +1845,15 @@ Singleton {
                 if (newAttributes !== undefined) {
                     for (var key in newAttributes) {
                         if (optimisticStates[entityId] && optimisticStates[entityId][key] !== undefined) {
-                            if (String(optimisticStates[entityId][key]) === String(newAttributes[key])) {
+                            if (optimisticAttributeMatchesActual(key, optimisticStates[entityId][key], newAttributes)) {
                                 _clearOptimisticState(entityId, key);
                             }
+                        }
+                    }
+
+                    if (optimisticStates[entityId] && optimisticStates[entityId]["color_temp_kelvin"] !== undefined) {
+                        if (optimisticAttributeMatchesActual("color_temp_kelvin", optimisticStates[entityId]["color_temp_kelvin"], newAttributes)) {
+                            _clearOptimisticState(entityId, "color_temp_kelvin");
                         }
                     }
                 }
