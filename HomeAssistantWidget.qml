@@ -32,7 +32,7 @@ PluginComponent {
     readonly property int rightColumnWidth: compactContentWidth
     readonly property int browserColumnWidth: 360
     readonly property int expandedPopoutWidth: rightColumnWidth + browserColumnWidth + Theme.spacingS + Theme.spacingM * 2
-    readonly property bool useStackedEditLayout: showEntityBrowser && CompositorService.isNiri
+    readonly property bool useStackedEditLayout: showEntityBrowser && (CompositorService.isNiri || CompositorService.isHyprland)
     readonly property int activePopoutWidth: useStackedEditLayout
         ? compactPopoutWidth
         : (showEntityBrowser ? expandedPopoutWidth : compactPopoutWidth)
@@ -68,11 +68,6 @@ PluginComponent {
     }
 
     function loadPersistentUiPreference(key, fallbackValue) {
-        const pluginValue = pluginData[key];
-        if (pluginValue !== undefined) {
-            return pluginValue;
-        }
-
         if (pluginService && pluginService.loadPluginState) {
             const stateValue = pluginService.loadPluginState("homeAssistantMonitor", key, undefined);
             if (stateValue !== undefined) {
@@ -81,11 +76,19 @@ PluginComponent {
             }
         }
 
+        const pluginValue = pluginData[key];
+        if (pluginValue !== undefined) {
+            return pluginValue;
+        }
+
         return fallbackValue;
     }
 
     function savePersistentUiPreference(key, value) {
         if (pluginService) {
+            if (pluginService.savePluginState) {
+                pluginService.savePluginState("homeAssistantMonitor", key, value);
+            }
             pluginService.savePluginData("homeAssistantMonitor", key, value);
         }
     }
@@ -636,7 +639,7 @@ PluginComponent {
                 Item {
                     id: contentFrame
                     readonly property real stackedBrowserHeight: root.useStackedEditLayout
-                        ? Math.min(240, Math.max(180, height * 0.38))
+                        ? Math.min(340, Math.max(240, height * 0.52))
                         : 0
                     readonly property real stackedListOffset: root.showEntityBrowser && root.useStackedEditLayout
                         ? stackedBrowserHeight + Theme.spacingS
