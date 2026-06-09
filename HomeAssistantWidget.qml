@@ -53,8 +53,10 @@ PluginComponent {
             }
         }
 
-        const pluginValue = pluginData[key];
-        return pluginValue !== undefined ? pluginValue : fallbackValue;
+        if (pluginService && pluginService.loadPluginData) {
+            return pluginService.loadPluginData("homeAssistantMonitor", key, fallbackValue);
+        }
+        return fallbackValue;
     }
 
     function savePersistentUiValue(key, value) {
@@ -71,16 +73,13 @@ PluginComponent {
         if (pluginService && pluginService.loadPluginState) {
             const stateValue = pluginService.loadPluginState("homeAssistantMonitor", key, undefined);
             if (stateValue !== undefined) {
-                pluginService.savePluginData("homeAssistantMonitor", key, stateValue);
                 return stateValue;
             }
         }
 
-        const pluginValue = pluginData[key];
-        if (pluginValue !== undefined) {
-            return pluginValue;
+        if (pluginService && pluginService.loadPluginData) {
+            return pluginService.loadPluginData("homeAssistantMonitor", key, fallbackValue);
         }
-
         return fallbackValue;
     }
 
