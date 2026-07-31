@@ -194,7 +194,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
-                text: I18n.tr(parent.section.label, "Control label")
+                text: parent.section.label
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
