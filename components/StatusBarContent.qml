@@ -235,8 +235,9 @@ Item {
                 StyledText {
                     visible: (!EntityHelper.isSwitchable(model) || !root.showButtonsOnStatusBar) && !availabilityIssue
                     text: {
+                        const translationVersion = HomeAssistantService.translationsVersion;
                         var state = model.state;
-                        return HassConstants.formatStateValue(state, model.unitOfMeasurement);
+                        return HomeAssistantService.formatEntityState(model.domain || "", state, model.unitOfMeasurement);
                     }
                     font.pixelSize: Theme.barTextSize(root.barThickness)
                     color: Theme.widgetTextColor || Theme.surfaceText
@@ -274,8 +275,9 @@ Item {
                 StyledText {
                     visible: (!EntityHelper.isSwitchable(model) || !root.showButtonsOnStatusBar) && !availabilityIssue
                     text: {
+                        const translationVersion = HomeAssistantService.translationsVersion;
                         var state = model.state;
-                        return HassConstants.formatStateValue(state, model.unitOfMeasurement);
+                        return HomeAssistantService.formatEntityState(model.domain || "", state, model.unitOfMeasurement);
                     }
                     font.pixelSize: Theme.barTextSize(root.barThickness)
                     color: Theme.widgetTextColor || Theme.surfaceText

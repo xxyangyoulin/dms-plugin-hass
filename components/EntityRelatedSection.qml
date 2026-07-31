@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "." as Components
+import "../services"
 import qs.Common
 import qs.Widgets
 
@@ -60,7 +61,10 @@ Column {
                     }
 
                     StyledText {
-                        text: Components.HassConstants.formatStateValue(modelData.state, modelData.unitOfMeasurement)
+                        text: {
+                            const translationVersion = HomeAssistantService.translationsVersion;
+                            return HomeAssistantService.formatEntityState(modelData.domain || "", modelData.state, modelData.unitOfMeasurement);
+                        }
                         font.pixelSize: 10
                         font.weight: Font.Bold
                         color: Theme.primary

@@ -456,9 +456,10 @@ Rectangle {
 
                                         StyledText {
                                             text: {
+                                                const translationVersion = HomeAssistantService.translationsVersion;
                                                 const val = modelData.state || "";
                                                 const unit = modelData.unitOfMeasurement || "";
-                                                return unit ? `${val} ${unit}` : val;
+                                                return HomeAssistantService.formatEntityState(modelData.domain || "", val, unit);
                                             }
                                             font.pixelSize: Theme.fontSizeSmall - 1
                                             color: entityRowCard.isMonitored ? Theme.primary : Theme.surfaceVariantText

@@ -194,7 +194,8 @@ QtObject {
                 type: "hvac_modes",
                 value: EntityHelper.getEffectiveValue(entityData, "state", ""),
                 options: hvacModes,
-                label: controlConfig.climate.hvacLabel
+                labels: hvacModes.map(v => HomeAssistantService.translateAttributeValue("climate", "hvac_modes", v)),
+                label: HomeAssistantService.translateAttributeName("climate", "hvac_modes", controlConfig.climate.hvacLabel)
             });
         }
 
@@ -204,7 +205,8 @@ QtObject {
                 type: "fan_modes",
                 value: EntityHelper.getEffectiveValue(entityData, "fan_mode", ""),
                 options: fanModes,
-                label: controlConfig.climate.fanLabel,
+                labels: fanModes.map(v => HomeAssistantService.translateAttributeValue("climate", "fan_modes", v)),
+                label: HomeAssistantService.translateAttributeName("climate", "fan_modes", controlConfig.climate.fanLabel),
                 icon: controlConfig.climate.fanIcon
             });
         }
@@ -215,7 +217,8 @@ QtObject {
                 type: "preset_modes",
                 value: EntityHelper.getEffectiveValue(entityData, "preset_mode", ""),
                 options: presetModes,
-                label: controlConfig.climate.presetLabel
+                labels: presetModes.map(v => HomeAssistantService.translateAttributeValue("climate", "preset_modes", v)),
+                label: HomeAssistantService.translateAttributeName("climate", "preset_modes", controlConfig.climate.presetLabel)
             });
         }
 
@@ -225,7 +228,8 @@ QtObject {
                 type: "swing_modes",
                 value: EntityHelper.getEffectiveValue(entityData, "swing_mode", ""),
                 options: swingModes,
-                label: controlConfig.climate.swingLabel
+                labels: swingModes.map(v => HomeAssistantService.translateAttributeValue("climate", "swing_modes", v)),
+                label: HomeAssistantService.translateAttributeName("climate", "swing_modes", controlConfig.climate.swingLabel)
             });
         }
 
@@ -280,7 +284,8 @@ QtObject {
                 type: "preset_modes",
                 value: EntityHelper.getEffectiveValue(entityData, "preset_mode", ""),
                 options: presetModes,
-                label: controlConfig.fan.presetLabel
+                labels: presetModes.map(v => HomeAssistantService.translateAttributeValue("fan", "preset_modes", v)),
+                label: HomeAssistantService.translateAttributeName("fan", "preset_modes", controlConfig.fan.presetLabel)
             });
         }
 

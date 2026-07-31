@@ -33,7 +33,8 @@ StyledRect {
     readonly property color iconBackgroundColor: Components.HassConstants.getIconBackgroundColor(entityData && entityData.domain ? entityData.domain : "", effectiveState, Theme)
     readonly property string entityIconName: _getEntityIcon(entityData && entityData.entityId ? entityData.entityId : "", entityData && entityData.domain ? entityData.domain : "")
     readonly property string stateSummaryText: {
-        const stateText = Components.HassConstants.formatStateValue(effectiveState, entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "");
+        const translationVersion = HomeAssistantService.translationsVersion;
+        const stateText = HomeAssistantService.formatEntityState(entityData && entityData.domain ? entityData.domain : "", effectiveState, entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "");
         if (actionError) return stateText + " • " + I18n.tr("Failed", "Entity action failed");
         return stateText;
     }

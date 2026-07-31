@@ -13,6 +13,7 @@ Column {
     property var sections: []
 
     function refreshSections() {
+        const translationVersion = HomeAssistantService.translationsVersion;
         const latestEntityData = entityData && entityData.entityId
             ? (HomeAssistantService.getEntityData(entityData.entityId) || entityData)
             : entityData;
@@ -31,6 +32,10 @@ Column {
         function onEntityDataChanged(entityId) {
             if (root.entityData && root.entityData.entityId === entityId)
                 root.refreshSections();
+        }
+
+        function onTranslationsChanged() {
+            root.refreshSections();
         }
     }
 
@@ -60,7 +65,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
-                text: I18n.tr("Position", "Control label")
+                text: HomeAssistantService.translateAttributeName("cover", "current_position", I18n.tr("Position", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }

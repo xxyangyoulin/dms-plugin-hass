@@ -14,6 +14,7 @@ Column {
     property var sections: []
 
     function refreshSections() {
+        const translationVersion = HomeAssistantService.translationsVersion;
         const latestEntityData = entityData && entityData.entityId
             ? (HomeAssistantService.getEntityData(entityData.entityId) || entityData)
             : entityData;
@@ -32,6 +33,10 @@ Column {
         function onEntityDataChanged(entityId) {
             if (root.entityData && root.entityData.entityId === entityId)
                 root.refreshSections();
+        }
+
+        function onTranslationsChanged() {
+            root.refreshSections();
         }
     }
 
@@ -74,7 +79,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
-                text: I18n.tr("Brightness", "Control label")
+                text: HomeAssistantService.translateAttributeName("light", "brightness", I18n.tr("Brightness", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -103,7 +108,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
-                text: I18n.tr("Color Temperature", "Control label")
+                text: HomeAssistantService.translateAttributeName("light", "color_temp_kelvin", I18n.tr("Color Temperature", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -177,7 +182,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
-                text: I18n.tr("Effect", "Control label")
+                text: HomeAssistantService.translateAttributeName("light", "effect", I18n.tr("Effect", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }

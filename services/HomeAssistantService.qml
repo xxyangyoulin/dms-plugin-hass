@@ -42,6 +42,10 @@ Singleton {
     // Services cache for dynamic controls
     property var servicesCache: ({})
     property bool servicesLoaded: false
+    property var translationsCache: ({})
+    property var translationDomainsLoaded: ({})
+    property var translationDomainsLoading: ({})
+    property int translationsVersion: 0
 
     // Entity Overrides (Friendly Name)
     property var entityOverrides: ({})
@@ -686,6 +690,7 @@ Singleton {
             if (!devicesLoaded) {
                 fetchDevices();
             }
+            fetchTranslations();
         } else {
             fetchEntities(true);
         }
@@ -726,6 +731,7 @@ Singleton {
             Qt.callLater(() => {
                 fetchServices();
                 fetchDevices();
+                fetchTranslations();
                 refresh();
                 
                 // Trigger immediate ping to get initial latency
@@ -780,6 +786,7 @@ Singleton {
 
          cachedAllEntities = allEntities;
          PluginService.setGlobalVar(pluginId, "allEntities", allEntities);
+         fetchTranslations();
          const monitoredEntities = buildMonitoredEntities(parsedEntityIds, buildEntityMap(allEntities));
 
          const newIds = monitoredEntities.map(e => e.entityId).join(",");
@@ -958,6 +965,147 @@ Singleton {
                  console.error("HomeAssistantMonitor: Failed to fetch services via WS");
             }
         });
+    }
+
+    function hassLanguage() {
+        const locale = I18n.currentLocale || Qt.locale().name || "en";
+        const normalized = locale.replace("_", "-");
+        if (normalized === "zh-CN" || normalized === "zh-Hans-CN" || normalized === "zh")
+            return "zh-Hans";
+        if (normalized === "zh-TW" || normalized === "zh-HK" || normalized === "zh-Hant")
+            return "zh-Hant";
+        return normalized;
+    }
+
+    function _entityDomains() {
+        const domains = [];
+        for (let i = 0; i < cachedAllEntities.length; i++) {
+            const domain = cachedAllEntities[i].domain || "";
+            if (domain && domains.indexOf(domain) < 0)
+                domains.push(domain);
+        }
+        return domains;
+    }
+
+    function fetchTranslations(domains) {
+        if (!canUseWebSocketApi())
+            return;
+
+        const requestedDomains = domains && domains.length > 0 ? domains : _entityDomains();
+        const language = hassLanguage();
+        for (let i = 0; i < requestedDomains.length; i++) {
+            const domain = requestedDomains[i];
+            if (!domain || translationDomainsLoaded[domain] || translationDomainsLoading[domain])
+                continue;
+
+            var loading = Object.assign({}, translationDomainsLoading);
+            loading[domain] = true;
+            translationDomainsLoading = loading;
+
+            sendWsMessage({
+                type: "frontend/get_translations",
+                language: language,
+                category: "entity_component",
+                integration: domain
+            }, (response) => {
+                var nextLoading = Object.assign({}, translationDomainsLoading);
+                delete nextLoading[domain];
+                translationDomainsLoading = nextLoading;
+
+                if (response.success && response.result) {
+                    translationsCache = Object.assign({}, translationsCache, response.result.resources || {});
+                    var loaded = Object.assign({}, translationDomainsLoaded);
+                    loaded[domain] = true;
+                    translationDomainsLoaded = loaded;
+                    translationsVersion++;
+                    translationsChanged();
+                    return;
+                }
+                console.warn("HomeAssistantMonitor: Failed to fetch translations for", domain, response.error ? JSON.stringify(response.error) : "");
+            });
+        }
+    }
+
+    function _translationPath(path) {
+        const flatKey = path.join(".");
+        if (translationsCache && translationsCache[flatKey] !== undefined)
+            return translationsCache[flatKey];
+
+        let node = translationsCache;
+        for (let i = 0; i < path.length; i++) {
+            if (!node || node[path[i]] === undefined)
+                return "";
+            node = node[path[i]];
+        }
+        return typeof node === "string" ? node : "";
+    }
+
+    function translateEntityState(domain, state) {
+        if (!domain || state === undefined || state === null)
+            return state || "";
+        fetchTranslations([domain]);
+        const value = String(state);
+        return _translationPath(["component", domain, "entity_component", "_", "state", value])
+            || value;
+    }
+
+    function _translationAttributeName(attrName) {
+        switch (attrName) {
+        case "hvac_modes":
+            return "hvac_modes";
+        case "fan_modes":
+            return "fan_mode";
+        case "preset_modes":
+            return "preset_mode";
+        case "swing_modes":
+            return "swing_mode";
+        default:
+            return attrName;
+        }
+    }
+
+    function translateAttributeValue(domain, attrName, value) {
+        if (!domain || value === undefined || value === null)
+            return value || "";
+        fetchTranslations([domain]);
+
+        if (domain === "climate" && attrName === "hvac_modes")
+            return translateEntityState(domain, value);
+
+        const translated = _translationPath([
+            "component",
+            domain,
+            "entity_component",
+            "_",
+            "state_attributes",
+            _translationAttributeName(attrName),
+            "state",
+            String(value)
+        ]);
+        return translated
+            || String(value);
+    }
+
+    function translateAttributeName(domain, attrName, fallback) {
+        fetchTranslations([domain]);
+        const translated = _translationPath([
+            "component",
+            domain,
+            "entity_component",
+            "_",
+            "state_attributes",
+            _translationAttributeName(attrName),
+            "name"
+        ]);
+        return translated || fallback || attrName;
+    }
+
+    function formatEntityState(domain, state, unitOfMeasurement) {
+        const val = state || "?";
+        const unit = unitOfMeasurement || "";
+        if (unit && val !== "unavailable" && val !== "unknown")
+            return val + unit;
+        return translateEntityState(domain, val);
     }
 
     // Get service definition for a specific domain and service
@@ -1227,6 +1375,7 @@ Singleton {
                     cachedAllEntities = allEntities;
 
                     PluginService.setGlobalVar(pluginId, "allEntities", allEntities);
+                    fetchTranslations();
                     const monitoredEntities = buildMonitoredEntities(parsedEntityIds, buildEntityMap(allEntities));
 
                     // 2. Only update the "heavy" list model if the structure changed
@@ -1656,6 +1805,7 @@ Singleton {
     signal entityDataChanged(string entityId)  // Unified signal when any entity data changes
     signal entityActionStateChanged(string entityId)
     signal refreshCompleted(bool success)
+    signal translationsChanged()
 
     function setOptimisticState(entityId, key, value) {
         var states = Object.assign({}, optimisticStates);
