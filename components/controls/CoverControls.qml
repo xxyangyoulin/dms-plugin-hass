@@ -10,6 +10,8 @@ Column {
     id: root
 
     required property var entityData
+    property bool compactLabels: false
+    readonly property bool showSectionLabels: !compactLabels || sections.length > 1
     property var sections: []
 
     function refreshSections() {
@@ -46,6 +48,7 @@ Column {
             required property var modelData
 
             width: root.width
+            height: item ? Math.max(item.implicitHeight, item.height) : 0
             property var section: modelData
             onLoaded: {
                 if (item)
@@ -65,6 +68,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: HomeAssistantService.translateAttributeName("cover", "current_position", I18n.tr("Position", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText

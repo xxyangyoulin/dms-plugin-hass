@@ -240,7 +240,8 @@ Rectangle {
                 width: parent ? parent.width : root.width
                 spacing: Theme.spacingXS
 
-                property bool isExpanded: root.isGroupExpanded(modelData.name)
+                readonly property string groupKey: modelData.id || modelData.name
+                property bool isExpanded: root.isGroupExpanded(groupKey)
 
                 Rectangle {
                     width: parent.width
@@ -257,7 +258,7 @@ Rectangle {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        onClicked: root.toggleGroupExpanded(modelData.name)
+                        onClicked: root.toggleGroupExpanded(groupColumn.groupKey)
                     }
 
                     Item {

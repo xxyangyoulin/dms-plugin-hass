@@ -12,6 +12,8 @@ Column {
 
     required property var entityData
     readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
+    property bool compactLabels: false
+    readonly property bool showSectionLabels: !compactLabels || sections.length > 1
     property var sections: []
 
     function refreshSections() {
@@ -43,6 +45,7 @@ Column {
             required property var modelData
 
             width: root.width
+            height: item ? Math.max(item.implicitHeight, item.height) : 0
             property var section: modelData
             onLoaded: {
                 if (item)
@@ -75,6 +78,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: I18n.tr("Value", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
@@ -108,6 +112,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: I18n.tr("Select", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
@@ -319,6 +324,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: I18n.tr("Options", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText

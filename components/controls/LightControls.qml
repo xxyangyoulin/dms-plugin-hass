@@ -11,6 +11,8 @@ Column {
 
     required property var entityData
     readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
+    property bool compactLabels: false
+    readonly property bool showSectionLabels: !compactLabels || sections.length > 1
     property var sections: []
 
     function refreshSections() {
@@ -47,6 +49,7 @@ Column {
             required property var modelData
 
             width: root.width
+            height: item ? Math.max(item.implicitHeight, item.height) : 0
             property var section: modelData
             onLoaded: {
                 if (item)
@@ -79,6 +82,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: HomeAssistantService.translateAttributeName("light", "brightness", I18n.tr("Brightness", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
@@ -108,6 +112,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: HomeAssistantService.translateAttributeName("light", "color_temp_kelvin", I18n.tr("Color Temperature", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
@@ -140,6 +145,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: I18n.tr("Color", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
@@ -182,44 +188,19 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: HomeAssistantService.translateAttributeName("light", "effect", I18n.tr("Effect", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
 
-            Flow {
+            SegmentedControl {
                 width: parent.width
-                spacing: 6
-                property var sectionData: parent.section
-
-                Repeater {
-                    model: parent.sectionData.options
-
-                    delegate: StyledRect {
-                        readonly property bool isSelected: parent.sectionData.value === modelData
-                        height: 30
-                        width: Math.max(60, effectText.implicitWidth + 24)
-                        radius: 15
-                        color: isSelected ? Theme.primary : Theme.surfaceContainerHigh
-
-                        StyledText {
-                            id: effectText
-                            anchors.centerIn: parent
-                            text: modelData
-                            font.pixelSize: Theme.fontSizeSmall
-                            font.weight: parent.isSelected ? Font.Bold : Font.Normal
-                            color: parent.isSelected ? root.selectedForegroundColor : Theme.surfaceText
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                HomeAssistantService.setOptimisticState(root.entityData.entityId, "effect", modelData);
-                                HomeAssistantService.setLightEffect(root.entityData.entityId, modelData);
-                            }
-                        }
-                    }
+                options: parent.section.options
+                value: parent.section.value
+                onSelected: (v) => {
+                    HomeAssistantService.setOptimisticState(root.entityData.entityId, "effect", v);
+                    HomeAssistantService.setLightEffect(root.entityData.entityId, v);
                 }
             }
         }

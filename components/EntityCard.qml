@@ -1,10 +1,7 @@
 import "." as Components
 import "../services"
-import "./controls"
 import QtQuick
 import qs.Common
-import qs.Modules.Plugins
-import qs.Services
 import qs.Widgets
 
 StyledRect {
@@ -20,7 +17,10 @@ StyledRect {
     readonly property real baseHeight: 68
     readonly property bool isControllable: Components.HassConstants.isControllableDomain(entityData && entityData.domain ? entityData.domain : "")
     readonly property bool hasControls: _hasControls()
-    readonly property bool hasExpandableContent: _computeHasExpandableContent()
+    readonly property bool hasOperations: hasControls || _extraEntitiesWithControls().length > 0
+    readonly property bool hasHistoryChart: entityData && entityData.domain === "sensor" && !isNaN(parseFloat(entityData.state))
+    readonly property bool canExpand: hasOperations || hasHistoryChart
+    readonly property bool canToggleExpand: isEditing || canExpand
     readonly property color hoverTintColor: Theme.primary || Theme.surfaceText
     readonly property string effectiveState: _getEffectiveState()
     readonly property bool availabilityIssue: effectiveState === "unavailable" || effectiveState === "unknown"
@@ -42,16 +42,24 @@ StyledRect {
     readonly property bool actionPending: entityActionState.status === "pending"
     readonly property bool actionError: entityActionState.status === "error"
     property int pendingDotsPhase: 0
-    property bool _hasExpandedOnce: false
-    property bool _hasActualContent: false
     property var historyData: []
+    property string historyEntityId: ""
+    property string historyRequestEntityId: ""
     property var relatedEntities: []
+    property var extraEntityIds: []
+    property var extraEntities: []
     property bool isEditing: false
     property bool isRenaming: false
+    property bool showExtraEntityPicker: false
     property string _renameBaseline: ""
     property var visibilityRule: null   // { op, value } or null (= always shown on bar)
 
-    onIsEditingChanged: if (!isEditing) isRenaming = false
+    onIsEditingChanged: {
+        if (!isEditing) {
+            isRenaming = false;
+            showExtraEntityPicker = false;
+        }
+    }
 
     signal toggleExpand()
     signal togglePin()
@@ -59,6 +67,8 @@ StyledRect {
     signal removeEntity()
     signal openIconPicker()
     signal setVisibility(var rule)   // null clears (always visible)
+    signal addExtraEntity(string entityId)
+    signal removeExtraEntity(string entityId)
 
     function _getEffectiveState() {
         return EntityHelper.getEffectiveState(entityData);
@@ -68,58 +78,45 @@ StyledRect {
         return EntityHelper.getEffectiveValue(entityData, attr, real);
     }
 
-    function _updateRelatedEntities() {
-        if (!isExpanded) { relatedEntities = []; return; }
-        if (!entityData || !HomeAssistantService.entityToDeviceCache) { relatedEntities = []; return; }
-        const deviceName = HomeAssistantService.entityToDeviceCache[entityData.entityId];
-        if (!deviceName) { relatedEntities = []; return; }
-        const deviceEntityIds = HomeAssistantService.devicesCache[deviceName] || [];
-        const all = globalAllEntities.value || [];
-        const entityMap = {};
-        for (const e of all)
-            entityMap[e.entityId] = e;
-        relatedEntities = deviceEntityIds
-            .filter((id) => id !== entityData.entityId)
-            .map((id) => entityMap[id])
-            .filter((e) => e !== undefined);
-    }
-
     function _hasControls() {
-        if (!entityData) return false;
-        const attrs = entityData.attributes || {};
-        const domain = entityData.domain;
-        if (["climate", "cover", "fan", "light", "media_player", "number", "input_number", "select", "input_select", "button"].includes(domain))
-            return true;
-        return attrs.brightness !== undefined || attrs.color_temp !== undefined || attrs.percentage !== undefined || attrs.current_position !== undefined || attrs.options !== undefined || attrs.effect_list !== undefined;
+        return _hasControlsFor(entityData);
     }
 
-    function _computeHasExpandableContent() {
-        if (!entityData) return false;
-        if (_hasExpandedOnce) return _hasActualContent;
-        const attrs = entityData.attributes || {};
-        const domain = entityData.domain;
-        if (hasControls) return true;
-        if (domain === "sensor" || domain === "binary_sensor") return true;
-        if (showAttributes) {
-            const ignoredKeys = ["friendly_name", "icon", "unit_of_measurement", "device_class", "supported_features", "entity_id", "entity", "last_changed", "last_updated"];
-            const keys = Object.keys(attrs).filter(function(key) { return !ignoredKeys.includes(key); });
-            if (keys.length > 0) return true;
-        }
-        return false;
+    function _hasControlsFor(data) {
+        return Components.EntityControlResolver.getOperationCount(data) > 0;
     }
 
-    function _updateActualContent() {
-        if (!_hasExpandedOnce) return;
-        const attrs = entityData ? entityData.attributes : {};
-        const hasAttrs = showAttributes && attrs && Object.keys(attrs).filter(function(key) {
-            return key !== "friendly_name" && key !== "icon" && key !== "unit_of_measurement" && key !== "device_class";
-        }).length > 0;
-        _hasActualContent = hasControls || hasAttrs || historyData.length > 0 || (relatedEntities && relatedEntities.length > 0);
+    function _extraEntitiesWithControls() {
+        return (extraEntities || []).filter(e => _hasControlsFor(e));
     }
 
-    function _resetExpandCache() {
-        _hasExpandedOnce = false;
-        _hasActualContent = false;
+    function _availableRelatedEntities() {
+        return (relatedEntities || []).filter(e => _hasControlsFor(e) && !extraEntityIds.includes(e.entityId));
+    }
+
+    function _shortEntityName(entity) {
+        if (!entity)
+            return "";
+        const name = entity.friendlyName || entity.entityId || "";
+        const base = entityData && entityData.friendlyName ? entityData.friendlyName.replace(/\s+(空调|灯|开关|风扇|传感器)$/, "").trim() : "";
+        if (base && name.startsWith(base))
+            return name.slice(base.length).replace(/^[\s*]+/, "").trim() || name;
+        return name;
+    }
+
+    function _loadHistory() {
+        if (!isExpanded || !hasHistoryChart || !entityData || historyRequestEntityId === entityData.entityId)
+            return;
+        const requestedEntityId = entityData.entityId;
+        historyRequestEntityId = requestedEntityId;
+        HomeAssistantService.fetchHistory(requestedEntityId, function(data) {
+            if (historyRequestEntityId === requestedEntityId)
+                historyRequestEntityId = "";
+            if (!isExpanded || !entityData || entityData.entityId !== requestedEntityId || !hasHistoryChart)
+                return;
+            historyEntityId = requestedEntityId;
+            historyData = data;
+        });
     }
 
     function _getEntityIcon(entityId, domain) {
@@ -194,27 +191,34 @@ StyledRect {
             : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.22))
 
     onEntityDataChanged: {
-        _updateRelatedEntities();
         _refreshActionState();
         if (!isRenaming)
             _renameBaseline = entityData && entityData.friendlyName ? entityData.friendlyName : "";
+        const currentEntityId = entityData && entityData.entityId ? entityData.entityId : "";
+        if (historyEntityId !== currentEntityId) {
+            historyEntityId = "";
+            historyData = [];
+            _loadHistory();
+        }
     }
     Component.onCompleted: {
         _renameBaseline = entityData && entityData.friendlyName ? entityData.friendlyName : "";
         _refreshActionState();
     }
     onIsExpandedChanged: {
-        if (!_hasExpandedOnce && isExpanded) _hasExpandedOnce = true;
-        _updateRelatedEntities();
-        if (isExpanded && entityData) {
-            const domain = entityData.domain;
-            if (domain === "sensor" || domain === "binary_sensor")
-                HomeAssistantService.fetchHistory(entityData.entityId, function(data) { historyData = data; _updateActualContent(); });
+        if (isExpanded && !canToggleExpand) {
+            toggleExpand();
+            return;
         }
-        _updateActualContent();
+        if (!isExpanded)
+            showExtraEntityPicker = false;
+        else
+            _loadHistory();
     }
-    onHistoryDataChanged: if (_hasExpandedOnce) _updateActualContent()
-    onRelatedEntitiesChanged: if (_hasExpandedOnce) _updateActualContent()
+    onCanToggleExpandChanged: {
+        if (!canToggleExpand && isExpanded)
+            toggleExpand();
+    }
     onActionPendingChanged: {
         if (actionPending) {
             pendingDotsPhase = 0;
@@ -235,32 +239,12 @@ StyledRect {
 
     height: baseHeight + (isExpanded && hasControls ? Theme.spacingM + controlsLoader.height : 0) + (isExpanded ? Theme.spacingM + expandedContent.height : 0)
 
-    PluginGlobalVar {
-        id: globalAllEntities
-        varName: "allEntities"
-        defaultValue: []
-    }
-
     Timer {
         id: pendingDotsTimer
         interval: 300
         repeat: true
         running: entityCard.actionPending
         onTriggered: entityCard.pendingDotsPhase = (entityCard.pendingDotsPhase + 1) % 3
-    }
-
-    property int _lastRefreshCounter: 0
-
-    PluginGlobalVar {
-        id: globalRefreshCounter
-        varName: "haRefreshCounter"
-        defaultValue: 0
-        onValueChanged: {
-            if (value > entityCard._lastRefreshCounter) {
-                entityCard._lastRefreshCounter = value;
-                entityCard._resetExpandCache();
-            }
-        }
     }
 
     Rectangle {
@@ -316,6 +300,7 @@ StyledRect {
 
     Loader {
         id: controlsLoader
+        asynchronous: true
         anchors.left: parent.left
         anchors.leftMargin: Theme.spacingL + Theme.spacingS
         anchors.right: parent.right
@@ -325,27 +310,13 @@ StyledRect {
         visible: isExpanded && hasControls
         active: isExpanded && hasControls
         opacity: visible ? 1 : 0
-        height: (visible && item) ? item.implicitHeight : 0
+        height: (visible && item) ? Math.max(item.implicitHeight, item.height) : 0
         z: 15
-        sourceComponent: {
-            if (!entityData) return null;
-            const domain = entityData.domain;
-            if (domain === "light") return lightControlsComp;
-            if (domain === "climate") return climateControlsComp;
-            if (domain === "fan") return fanControlsComp;
-            if (domain === "cover") return coverControlsComp;
-            if (domain === "media_player") return mediaPlayerControlsComp;
-            return generalControlsComp;
-        }
+        sourceComponent: entityControlsComp
         Behavior on opacity { NumberAnimation { duration: 150 } }
     }
 
-    Component { id: lightControlsComp; LightControls { entityData: entityCard.entityData } }
-    Component { id: climateControlsComp; ClimateControls { entityData: entityCard.entityData } }
-    Component { id: fanControlsComp; FanControls { entityData: entityCard.entityData } }
-    Component { id: coverControlsComp; CoverControls { entityData: entityCard.entityData } }
-    Component { id: mediaPlayerControlsComp; MediaPlayerControls { entityData: entityCard.entityData } }
-    Component { id: generalControlsComp; GeneralControls { entityData: entityCard.entityData } }
+    Component { id: entityControlsComp; EntityControlsView { entityData: entityCard.entityData; compactLabels: true } }
 
     EntityExpandableContent {
         id: expandedContent
@@ -358,15 +329,122 @@ StyledRect {
         expanded: entityCard.isExpanded
         z: 15
 
-        EntityHistorySection {
+        Loader {
             width: parent.width
-            historyData: entityCard.historyData
-            unit: entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : ""
+            active: entityCard.isExpanded && entityCard.historyData.length > 0
+            asynchronous: true
+            sourceComponent: historySectionComponent
+        }
+
+        Component {
+            id: historySectionComponent
+
+            EntityHistorySection {
+                historyData: entityCard.historyData
+                unit: entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : ""
+            }
+        }
+
+        Column {
+            width: parent.width
+            spacing: Theme.spacingM
+            visible: entityCard._extraEntitiesWithControls().length > 0
+
+            StyledRect {
+                width: parent.width
+                height: 1
+                color: Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.18)
+            }
+
+            Repeater {
+                model: entityCard.isExpanded ? entityCard._extraEntitiesWithControls() : []
+
+                delegate: Column {
+                    required property var modelData
+
+                    width: parent.width
+                    spacing: Theme.spacingS
+
+                    Row {
+                        width: parent.width
+                        spacing: Theme.spacingS
+
+                        StyledText {
+                            text: entityCard._shortEntityName(modelData)
+                            font.pixelSize: Theme.fontSizeSmall
+                            color: Theme.surfaceVariantText
+                            elide: Text.ElideRight
+                            width: parent.width - (removeExtraButton.visible ? removeExtraButton.width + Theme.spacingS : 0)
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        EditActionButton {
+                            id: removeExtraButton
+                            width: 28
+                            height: 28
+                            visible: entityCard.isEditing
+                            iconName: "close"
+                            iconSize: 13
+                            iconColor: Theme.primaryText
+                            backgroundColor: Theme.error || "transparent"
+                            onClicked: entityCard.removeExtraEntity(modelData.entityId)
+                        }
+                    }
+
+                    EntityControlsView {
+                        width: parent.width
+                        height: implicitHeight
+                        entityData: modelData
+                        compactLabels: true
+                    }
+                }
+            }
+        }
+
+        StyledRect {
+            width: parent.width
+            height: 36
+            radius: Theme.cornerRadius
+            visible: entityCard.isEditing
+            color: Theme.surfaceContainerHigh
+
+            Row {
+                anchors.centerIn: parent
+                spacing: Theme.spacingS
+
+                DankIcon {
+                    name: entityCard.showExtraEntityPicker ? "expand_less" : "add_circle"
+                    size: 16
+                    color: Theme.surfaceText
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                StyledText {
+                    text: entityCard.showExtraEntityPicker
+                        ? I18n.tr("Hide addable entities", "Button label")
+                        : I18n.tr("Add device entity", "Button label")
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.surfaceText
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: entityCard.showExtraEntityPicker = !entityCard.showExtraEntityPicker
+            }
         }
 
         EntityRelatedSection {
             width: parent.width
-            relatedEntities: entityCard.relatedEntities
+            relatedEntities: entityCard._availableRelatedEntities()
+            isEditing: entityCard.isEditing
+            pickerVisible: entityCard.showExtraEntityPicker
+            selectedEntityIds: entityCard.extraEntityIds
+            baseName: entityCard.entityData && entityCard.entityData.friendlyName ? entityCard.entityData.friendlyName : ""
+            onAddEntity: entityId => entityCard.addExtraEntity(entityId)
+            onRemoveEntity: entityId => entityCard.removeExtraEntity(entityId)
         }
 
         EntityDetailsSection {
@@ -406,7 +484,6 @@ StyledRect {
         }
         onClicked: entityCard._triggerQuickAction()
     }
-
     Rectangle {
         id: expandIcon
         width: 40
@@ -418,7 +495,7 @@ StyledRect {
         anchors.top: parent.top
         anchors.topMargin: (entityCard.baseHeight - height) / 2
         z: 10
-        visible: !isEditing && hasExpandableContent
+        visible: !isEditing && canExpand
 
         DankIcon {
             name: isExpanded ? "expand_less" : "expand_more"
@@ -519,20 +596,20 @@ StyledRect {
         anchors.top: parent.top
         height: entityCard.baseHeight
         hoverEnabled: true
-        cursorShape: hasExpandableContent ? Qt.PointingHandCursor : Qt.ArrowCursor
+        cursorShape: canToggleExpand ? Qt.PointingHandCursor : Qt.ArrowCursor
         preventStealing: true
         z: 1
         enabled: !isRenaming
 
         onClicked: {
-            if (!isEditing && hasExpandableContent)
+            if (canToggleExpand)
                 entityCard.toggleExpand();
         }
 
         onDoubleClicked: {
             if (isEditing) {
                 entityCard._startRename();
-            } else if (hasExpandableContent) {
+            } else if (canExpand) {
                 entityCard.toggleExpand();
             }
         }

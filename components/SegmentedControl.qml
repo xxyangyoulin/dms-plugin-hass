@@ -10,11 +10,9 @@ Item {
     property var value: null
     property string unit: ""
     property string icon: ""
-    property int buttonHeight: 40
-    property int minimumButtonWidth: 72
+    property int buttonHeight: 30
+    property int minimumButtonWidth: 60
     readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
-    readonly property int optionCount: root.options ? root.options.length : 0
-
     signal selected(var value)
 
     function labelFor(modelData, index) {
@@ -22,15 +20,6 @@ Item {
             return root.labels[index];
 
         return (typeof modelData === "number" ? Math.round(modelData) : modelData) + root.unit;
-    }
-
-    function buttonsPerRow() {
-        if (root.optionCount === 0)
-            return 1;
-
-        const available = root.width + layout.spacing;
-        const wanted = root.minimumButtonWidth + layout.spacing;
-        return Math.min(root.optionCount, Math.max(1, Math.floor(available / wanted)));
     }
 
     // Find the index of the closest option to the current value
@@ -64,7 +53,7 @@ Item {
         id: layout
 
         width: root.width
-        spacing: Theme.spacingS
+        spacing: 6
 
         Repeater {
             model: root.options
@@ -77,8 +66,9 @@ Item {
                 readonly property bool showIcon: root.icon !== "" && isSelected
 
                 height: root.buttonHeight
-                width: (root.width - (layout.spacing * (root.buttonsPerRow() - 1))) / root.buttonsPerRow()
-                radius: Theme.cornerRadius
+                width: Math.min(root.width, Math.max(root.minimumButtonWidth,
+                    label.implicitWidth + 24 + (root.icon !== "" ? 14 + Theme.spacingXS : 0)))
+                radius: root.buttonHeight / 2
                 clip: true
                 color: isSelected ? Theme.primary : Theme.surfaceContainerHigh
 
@@ -107,7 +97,7 @@ Item {
                         text: root.labelFor(modelData, index)
                         width: parent.width - (selectedIcon.visible ? selectedIcon.width + parent.spacing : 0)
                         font.pixelSize: Theme.fontSizeSmall
-                        font.weight: btn.isSelected ? Font.Bold : Font.Medium
+                        font.weight: btn.isSelected ? Font.Bold : Font.Normal
                         color: btn.isSelected ? root.selectedForegroundColor : Theme.surfaceText
                         anchors.verticalCenter: parent.verticalCenter
                         horizontalAlignment: Text.AlignHCenter

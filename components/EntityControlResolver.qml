@@ -180,13 +180,15 @@ QtObject {
 
         const sections = [];
 
-        sections.push({
-            type: "temperature",
-            value: EntityHelper.getEffectiveValue(entityData, "temperature", 20),
-            step: EntityHelper.getEffectiveValue(entityData, "target_temp_step", 0.5),
-            unit: EntityHelper.getEffectiveValue(entityData, "temperature_unit", "°C"),
-            currentTemperature: EntityHelper.getEffectiveValue(entityData, "current_temperature", undefined)
-        });
+        if (_attr(entityData, "temperature", undefined) !== undefined) {
+            sections.push({
+                type: "temperature",
+                value: EntityHelper.getEffectiveValue(entityData, "temperature", 20),
+                step: EntityHelper.getEffectiveValue(entityData, "target_temp_step", 0.5),
+                unit: EntityHelper.getEffectiveValue(entityData, "temperature_unit", "°C"),
+                currentTemperature: EntityHelper.getEffectiveValue(entityData, "current_temperature", undefined)
+            });
+        }
 
         const hvacModes = EntityHelper.getEffectiveValue(entityData, "hvac_modes", []);
         if (hvacModes && hvacModes.length > 0) {
@@ -309,5 +311,35 @@ QtObject {
         }
 
         return sections;
+    }
+
+    function getOperationCount(entityData) {
+        if (!entityData)
+            return 0;
+
+        switch (entityData.domain) {
+        case "light":
+            return getLightSections(entityData).length;
+        case "climate":
+            return getClimateSections(entityData).length;
+        case "fan":
+            return getFanSections(entityData).length;
+        case "cover":
+            return getCoverSections(entityData).length;
+        case "media_player": {
+            const state = EntityHelper.getEffectiveState(entityData);
+            if (state === "unavailable" || state === "unknown")
+                return 0;
+            let count = state !== "off" ? 1 : 0;
+            if (HassConstants.supportsFeature(entityData, HassConstants.mediaFeature.VOLUME_SET))
+                count++;
+            const sources = EntityHelper.getEffectiveValue(entityData, "source_list", []);
+            if (sources && sources.length > 0)
+                count++;
+            return count;
+        }
+        default:
+            return getGeneralSections(entityData).length;
+        }
     }
 }

@@ -15,6 +15,7 @@ PluginComponent {
     property var pinnedEntities: []
     property var customIcons: ({})
     property var visibilityRules: ({})   // { entityId: { op, value } } — conditional bar visibility
+    property var deviceExtraEntities: ({})
 
     // Cache for status bar - use computed properties to ensure proper scope
     readonly property var cachedGlobalEntities: globalEntities.value || []
@@ -63,9 +64,8 @@ PluginComponent {
     function savePersistentUiValue(key, value) {
         if (pluginService && pluginService.savePluginState) {
             pluginService.savePluginState("homeAssistantMonitor", key, value);
-            return;
         }
-        if (pluginService) {
+        if (pluginService && pluginService.savePluginData) {
             pluginService.savePluginData("homeAssistantMonitor", key, value);
         }
     }
@@ -90,6 +90,13 @@ PluginComponent {
                 pluginService.savePluginState("homeAssistantMonitor", key, value);
             }
             pluginService.savePluginData("homeAssistantMonitor", key, value);
+        }
+    }
+
+    function loadDeviceExtraEntities() {
+        if (pluginService && pluginService.loadPluginData) {
+            deviceExtraEntities = pluginService.loadPluginData("homeAssistantMonitor", "deviceExtraEntities", ({}));
+            pruneInvalidDeviceExtraEntities();
         }
     }
 
@@ -195,16 +202,23 @@ PluginComponent {
         function onRefreshCompleted(success) {
             root.manualRefreshInProgress = false;
         }
+        function onAllEntitiesStructureChanged() {
+            root.pruneInvalidDeviceExtraEntities();
+        }
     }
 
     onPluginDataChanged: {
         syncPinnedEntitiesFromStorage();
+        loadDeviceExtraEntities();
     }
+
+    onPluginServiceChanged: loadDeviceExtraEntities();
 
     Component.onCompleted: {
         syncPinnedEntitiesFromStorage();
         customIcons = loadPersistentUiValue("customIcons", ({}));
         visibilityRules = loadPersistentUiValue("entityVisibility", ({}));
+        loadDeviceExtraEntities();
         syncSelectionState();
     }
 
@@ -357,6 +371,8 @@ PluginComponent {
     }
 
     readonly property var moreInfoDomains: {
+        if (!showEntityBrowser || browseMode !== "more_info")
+            return [];
         const entities = globalAllEntities.value || [];
         const searchLower = debouncedSearchText.toLowerCase().trim();
         const filteredEntities = entities
@@ -386,25 +402,31 @@ PluginComponent {
 
     // Entity grouping by device
     readonly property var entityDevices: {
+        if (!showEntityBrowser || browseMode !== "device")
+            return [];
         const devicesCache = HomeAssistantService.devicesCache || {};
         const allEntities = globalAllEntities.value || [];
         const searchLower = debouncedSearchText.toLowerCase().trim();
         const entityMap = buildEntityMap(allEntities);
 
         const devices = [];
-        const sortedDeviceNames = Object.keys(devicesCache).sort((a, b) => a.localeCompare(b));
+        const sortedDeviceIds = Object.keys(devicesCache).sort((a, b) => {
+            return devicesCache[a].name.localeCompare(devicesCache[b].name);
+        });
 
-        for (const deviceName of sortedDeviceNames) {
-            const entityIds = devicesCache[deviceName] || [];
+        for (const deviceId of sortedDeviceIds) {
+            const device = devicesCache[deviceId];
+            const entityIds = device.entityIds || [];
             const deviceEntities = entityIds
                 .map(id => entityMap[id])
                 .filter(e => e !== undefined)
-                .filter(e => matchesEntitySearch(e, searchLower, deviceName))
+                .filter(e => matchesEntitySearch(e, searchLower, device.name))
                 .sort((a, b) => a.friendlyName.localeCompare(b.friendlyName));
 
             if (deviceEntities.length > 0) {
                 devices.push({
-                    name: deviceName,
+                    id: deviceId,
+                    name: device.name,
                     entities: deviceEntities,
                     entityCount: entityIds.length
                 });
@@ -419,6 +441,68 @@ PluginComponent {
     function isEntityMonitored(entityId) {
         const entities = globalEntities.value || [];
         return entities.some(e => e.entityId === entityId);
+    }
+
+    function extraEntityIdsFor(entityId) {
+        return deviceExtraEntities[entityId] || [];
+    }
+
+    function saveDeviceExtraEntities(nextExtras) {
+        deviceExtraEntities = nextExtras;
+        savePersistentUiValue("deviceExtraEntities", nextExtras);
+    }
+
+    function pruneInvalidDeviceExtraEntities() {
+        const allEntities = globalAllEntities.value || [];
+        if (allEntities.length === 0)
+            return;
+
+        const validEntityIds = {};
+        for (const entity of allEntities)
+            validEntityIds[entity.entityId] = true;
+
+        const nextExtras = {};
+        let changed = false;
+        for (const mainEntityId in deviceExtraEntities) {
+            if (!validEntityIds[mainEntityId]) {
+                changed = true;
+                continue;
+            }
+
+            const current = deviceExtraEntities[mainEntityId] || [];
+            const validExtras = current.filter(entityId => validEntityIds[entityId]);
+            if (validExtras.length !== current.length)
+                changed = true;
+            if (validExtras.length > 0)
+                nextExtras[mainEntityId] = validExtras;
+        }
+
+        if (changed)
+            saveDeviceExtraEntities(nextExtras);
+    }
+
+    function addDeviceExtraEntity(mainEntityId, extraEntityId) {
+        if (!mainEntityId || !extraEntityId || mainEntityId === extraEntityId)
+            return;
+        const current = extraEntityIdsFor(mainEntityId);
+        if (current.includes(extraEntityId))
+            return;
+        const nextExtras = Object.assign({}, deviceExtraEntities);
+        nextExtras[mainEntityId] = current.concat([extraEntityId]);
+        saveDeviceExtraEntities(nextExtras);
+    }
+
+    function removeDeviceExtraEntity(mainEntityId, extraEntityId) {
+        const current = extraEntityIdsFor(mainEntityId);
+        const nextList = current.filter(id => id !== extraEntityId);
+        if (nextList.length === current.length)
+            return;
+        const nextExtras = Object.assign({}, deviceExtraEntities);
+        if (nextList.length > 0)
+            nextExtras[mainEntityId] = nextList;
+        else
+            delete nextExtras[mainEntityId];
+        saveDeviceExtraEntities(nextExtras);
     }
 
     function moveSelection(offset) {
@@ -482,11 +566,6 @@ PluginComponent {
     function refreshEntities() {
         if (root.manualRefreshInProgress) return;
         root.manualRefreshInProgress = true;
-        // Increment refresh counter to reset entity card expand caches
-        var currentCounter = pluginData.haRefreshCounter || 0;
-        if (pluginService) {
-            pluginService.savePluginData("homeAssistantMonitor", "haRefreshCounter", currentCounter + 1);
-        }
         HomeAssistantService.refresh();
         ToastService.showInfo(I18n.tr("Refreshing Home Assistant entities...", "Entity refresh notification"));
     }
@@ -696,6 +775,10 @@ PluginComponent {
                         showAttributes: root.showAttributes
                         customIcons: root.customIcons
                         visibilityRules: root.visibilityRules
+                        deviceExtraEntities: root.deviceExtraEntities
+                        allEntities: globalAllEntities.value || []
+                        devicesCache: HomeAssistantService.devicesCache || {}
+                        entityToDeviceCache: HomeAssistantService.entityToDeviceCache || {}
 
                         onRequestListView: listView => root.entityListView = listView
                         onRequestToggleExpand: entityId => root.toggleEntity(entityId)
@@ -704,6 +787,8 @@ PluginComponent {
                         onRequestRemoveEntity: entityId => HomeAssistantService.removeEntityFromMonitor(entityId)
                         onRequestOpenIconPicker: entityId => root.openIconPicker(entityId)
                         onRequestSetVisibility: (entityId, rule) => root.setEntityVisibility(entityId, rule)
+                        onRequestAddExtra: (mainEntityId, extraEntityId) => root.addDeviceExtraEntity(mainEntityId, extraEntityId)
+                        onRequestRemoveExtra: (mainEntityId, extraEntityId) => root.removeDeviceExtraEntity(mainEntityId, extraEntityId)
                     }
                 }
             }

@@ -92,7 +92,7 @@ Column {
 
         Repeater {
             model: {
-                if (!root.entityData || !root.entityData.attributes)
+                if (!root.detailsExpanded || !root.showAttributes || !root.entityData || !root.entityData.attributes)
                     return [];
                 const attrs = root.entityData.attributes;
                 const keys = Object.keys(attrs).filter(function(key) {
