@@ -19,17 +19,25 @@ Item {
 
     // Internal property to control reconnection without breaking the external binding
     property bool _internalActive: active
+    property bool _reopenOnClosed: false
+    readonly property bool reconnectPending: _reopenOnClosed
 
     WebSocket {
         id: socket
         url: root.url
         active: root._internalActive
         onTextMessageReceived: (message) => root.textMessageReceived(message)
-        onStatusChanged: (status) => root.socketStatusChanged(status)
+        onStatusChanged: (status) => {
+            root.socketStatusChanged(status);
+            if (status === WebSocket.Closed)
+                root._reopenIfPending();
+        }
     }
 
     // Update internal active when external active changes
     onActiveChanged: {
+        if (!active)
+            _reopenOnClosed = false;
         _internalActive = active;
     }
 
@@ -38,13 +46,21 @@ Item {
     }
 
     function reconnect() {
-        // Force a reconnection by toggling the internal active property
-        // This doesn't break the external binding
-        const wasActive = _internalActive;
+        if (!active || _reopenOnClosed)
+            return;
+
+        _reopenOnClosed = true;
         _internalActive = false;
-        // Use a small delay to ensure the disconnect is processed
-        Qt.callLater(() => {
-            _internalActive = wasActive;
-        });
+        if (socket.status === WebSocket.Closed)
+            _reopenIfPending();
+    }
+
+    function _reopenIfPending() {
+        if (!_reopenOnClosed)
+            return;
+
+        _reopenOnClosed = false;
+        if (active)
+            _internalActive = true;
     }
 }

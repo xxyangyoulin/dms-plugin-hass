@@ -32,6 +32,7 @@ Singleton {
     property bool statesRequestInFlight: false
     property bool statesRefreshPending: false
     property bool statesPendingRefreshCompletion: false
+    property int statesFailureBackoffMs: 0
     
     readonly property bool isConfigured: hassUrl !== "" && hassToken !== ""
 
@@ -370,7 +371,8 @@ Singleton {
                         setConnectionState("auth_error", connectionMessage || wsLoader.item.errorString);
                     } else {
                         setConnectionState("offline", wsLoader.item.errorString || I18n.tr("WebSocket error", "Home Assistant connection error"));
-                        reconnectTimer.start();
+                        if (!wsLoader.item.reconnectPending)
+                            reconnectTimer.start();
                     }
                 } else if (status === root.wsClosed) {
                     wsAuthenticated = false;
@@ -384,7 +386,8 @@ Singleton {
                         suppressReconnect = false;
                     } else {
                         setConnectionState("offline", I18n.tr("Disconnected from Home Assistant", "Home Assistant connection error"));
-                        reconnectTimer.start();
+                        if (!wsLoader.item.reconnectPending)
+                            reconnectTimer.start();
                     }
                 } else if (status === root.wsOpen) {
                     currentReconnectInterval = 5000;
@@ -469,6 +472,18 @@ Singleton {
                 allEntitiesStructureDirty = false;
                 allEntitiesStructureChanged();
             }
+        }
+    }
+
+    Timer {
+        id: statesRetryTimer
+        interval: root.statesFailureBackoffMs
+        repeat: false
+        onTriggered: {
+            const shouldEmitRefreshCompletion = root.statesPendingRefreshCompletion;
+            root.statesRefreshPending = false;
+            root.statesPendingRefreshCompletion = false;
+            fetchEntities(shouldEmitRefreshCompletion);
         }
     }
 
@@ -1394,7 +1409,15 @@ Singleton {
             return;
         }
 
+        if (statesRetryTimer.running) {
+            statesRefreshPending = true;
+            statesPendingRefreshCompletion = statesPendingRefreshCompletion || shouldEmitRefreshCompletion;
+            return;
+        }
+
         if (!hassUrl || !hassToken) {
+            statesFailureBackoffMs = 0;
+            statesRetryTimer.stop();
             updateEntities([]);
             haAvailable = false;
             PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
@@ -1411,6 +1434,8 @@ Singleton {
             statesPendingRefreshCompletion = false;
 
             if (exitCode === 0 && stdout) {
+                statesFailureBackoffMs = 0;
+                statesRetryTimer.stop();
                 try {
                     const allStates = JSON.parse(stdout);
 
@@ -1463,11 +1488,16 @@ Singleton {
                 haAvailable = false;
                 PluginService.setGlobalVar(pluginId, "haAvailable", false);
                 setConnectionState("offline", I18n.tr("Failed to fetch Home Assistant states", "Home Assistant connection error"));
+                statesFailureBackoffMs = statesFailureBackoffMs > 0
+                    ? Math.min(60000, statesFailureBackoffMs * 2)
+                    : 5000;
+                statesRetryTimer.restart();
                 if (shouldEmitRefreshCompletion) refreshCompleted(false);
             }
 
             if (runPendingRefresh) {
-                Qt.callLater(() => fetchEntities(pendingRefreshCompletion));
+                if (!statesRetryTimer.running)
+                    Qt.callLater(() => fetchEntities(pendingRefreshCompletion));
             }
         });
     }
