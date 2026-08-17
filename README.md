@@ -7,9 +7,11 @@ Monitor and control your Home Assistant entities directly from your status bar.
 ## Features
 
 - **Real-time Monitoring**: WebSocket-based updates for instant state changes.
-- **Entity Controls**: Toggle lights, switches, locks, covers, fans, and more.
+- **Entity Controls**: Toggle lights, switches, locks, covers, fans, climate devices, and more.
+- **Device Details**: Expand monitored devices for compact related controls and supported sensor history charts.
+- **Climate Controls**: Use native on/off actions while showing the target temperature at a glance.
 - **Quick Actions**: Pin entities to the status bar or create top-level shortcut buttons.
-- **Editing Mode**: Sort, rename (double-click), and manage shortcuts easily.
+- **Editing Mode**: Sort, rename (double-click), and manage shortcuts easily, with an optional two-column layout.
 - **Browser**: Built-in entity browser to find and add devices.
 
 ## Requirements

@@ -636,7 +636,7 @@ PluginComponent {
         FocusScope {
             id: popoutScope
             implicitWidth: root.activePopoutWidth
-            readonly property real contentHeight: overviewPanel.height + Theme.spacingS + contentFrame.implicitHeight
+            readonly property real contentHeight: overviewPanel.height + Theme.spacingS + contentFrame.height
             implicitHeight: contentHeight + Theme.spacingM * 2
             focus: true
             
@@ -712,9 +712,12 @@ PluginComponent {
 
                 Item {
                     id: contentFrame
+                    readonly property real availablePopoutHeight: (root.parentScreen ? root.parentScreen.height : Screen.height) - 100
                     readonly property real maxContentHeight: Math.max(260,
-                        (root.parentScreen ? root.parentScreen.height : Screen.height)
-                        - 100 - overviewPanel.height - Theme.spacingS - Theme.spacingM * 2)
+                        availablePopoutHeight - overviewPanel.height - Theme.spacingS - Theme.spacingM * 2)
+                    readonly property real minContentHeight: root.isEditing
+                        ? Math.max(0, Math.min(640, availablePopoutHeight) - overviewPanel.height - Theme.spacingS - Theme.spacingM * 2)
+                        : 0
                     readonly property real stackedBrowserHeight: root.useStackedEditLayout
                         ? Math.min(340, Math.max(240, maxContentHeight * 0.45))
                         : 0
@@ -729,7 +732,7 @@ PluginComponent {
                         : (root.showEntityBrowser
                         ? root.browserColumnWidth + Theme.spacingS + root.rightColumnWidth
                         : root.compactContentWidth)
-                    height: implicitHeight
+                    height: Math.max(implicitHeight, minContentHeight)
                     implicitHeight: root.useStackedEditLayout
                         ? stackedBrowserHeight + Theme.spacingS + rightColumn.preferredHeight
                         : rightColumn.preferredHeight
