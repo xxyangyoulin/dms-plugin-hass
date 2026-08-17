@@ -257,7 +257,15 @@ StyledRect {
         }
     }
 
-    height: baseHeight + (isExpanded && hasControls ? Theme.spacingM + controlsLoader.height : 0) + (isExpanded ? Theme.spacingM + expandedContent.height : 0)
+    readonly property real controlsTargetHeight: controlsLoader.expanded && controlsLoader.item
+        ? Math.max(controlsLoader.item.implicitHeight, controlsLoader.item.height)
+        : 0
+    readonly property real expandedTargetHeight: isExpanded ? expandedContent.implicitHeight : 0
+
+    height: baseHeight
+        + (isExpanded && hasControls ? Theme.spacingM + controlsTargetHeight : 0)
+        + (isExpanded ? Theme.spacingM + expandedTargetHeight : 0)
+    clip: true
 
     Timer {
         id: pendingDotsTimer
@@ -320,6 +328,7 @@ StyledRect {
 
     Loader {
         id: controlsLoader
+        readonly property bool expanded: entityCard.isExpanded && entityCard.hasControls
         asynchronous: true
         anchors.left: parent.left
         anchors.leftMargin: Theme.spacingL + Theme.spacingS
@@ -327,12 +336,14 @@ StyledRect {
         anchors.rightMargin: Theme.spacingL + Theme.spacingS
         anchors.top: parent.top
         anchors.topMargin: entityCard.baseHeight
-        visible: isExpanded && hasControls
-        active: isExpanded && hasControls
-        opacity: visible ? 1 : 0
-        height: (visible && item) ? Math.max(item.implicitHeight, item.height) : 0
+        visible: height > 0
+        active: hasControls
+        opacity: expanded ? 1 : 0
+        height: expanded ? entityCard.controlsTargetHeight : 0
+        clip: true
         z: 15
         sourceComponent: entityControlsComp
+        Behavior on height { NumberAnimation { duration: Theme.shorterDuration; easing.type: Easing.OutCubic } }
         Behavior on opacity { NumberAnimation { duration: Theme.shorterDuration; easing.type: Easing.OutCubic } }
     }
 
@@ -351,7 +362,7 @@ StyledRect {
 
         Loader {
             width: parent.width
-            active: entityCard.isExpanded && entityCard.historyData.length > 0
+            active: entityCard.historyData.length > 0
             asynchronous: true
             sourceComponent: historySectionComponent
         }
@@ -377,7 +388,7 @@ StyledRect {
             }
 
             Repeater {
-                model: entityCard.isExpanded ? entityCard._extraEntitiesWithControls() : []
+                model: entityCard._extraEntitiesWithControls()
 
                 delegate: Column {
                     required property var modelData
