@@ -12,6 +12,7 @@ Column {
     property string connectionStatus: "offline"
     property string connectionMessage: ""
     property bool contentReady: false
+    property real maxContentHeight
     property bool isEditing: false
     property bool keyboardNavigationActive: false
     property string selectedEntityId: ""
@@ -30,6 +31,10 @@ Column {
         for (const entity of root.allEntities || [])
             map[entity.entityId] = entity;
         return map;
+    }
+    readonly property real preferredHeight: {
+        const contentHeight = (root.entities || []).length > 0 ? entityList.contentHeight : 260;
+        return Math.min(root.maxContentHeight, Math.max(260, contentHeight));
     }
 
     signal requestListView(ListView listView)
@@ -79,7 +84,7 @@ Column {
     }
 
     width: parent ? parent.width : implicitWidth
-    height: parent ? parent.height : implicitHeight
+    height: parent ? parent.height : preferredHeight
     spacing: Theme.spacingS
 
     EmptyState {
@@ -115,10 +120,10 @@ Column {
         }
 
         move: Transition {
-            NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { properties: "y"; duration: Theme.shorterDuration; easing.type: Easing.OutCubic }
         }
         moveDisplaced: Transition {
-            NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { properties: "y"; duration: Theme.shorterDuration; easing.type: Easing.OutCubic }
         }
         add: Transition {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }

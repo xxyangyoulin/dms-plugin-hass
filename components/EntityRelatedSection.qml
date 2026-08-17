@@ -25,9 +25,19 @@ Column {
         if (!entity)
             return "";
         const name = entity.friendlyName || entity.entityId || "";
-        const base = root.baseName.replace(/\s+(空调|灯|开关|风扇|传感器)$/, "").trim();
-        if (base && name.startsWith(base))
-            return name.slice(base.length).replace(/^[\s*]+/, "").trim() || name;
+        const baseName = root.baseName.trim();
+        const simplifiedBase = baseName
+            .replace(/(?:\s*(?:空调|灯|开关|风扇|传感器)|\s+(?:ac|air conditioner|air conditioning|thermostat|climate|light|lamp|switch|fan|sensor))$/i, "")
+            .trim();
+        const bases = simplifiedBase && simplifiedBase !== baseName ? [baseName, simplifiedBase] : [baseName];
+        for (const base of bases) {
+            if (!base || !name.toLowerCase().startsWith(base.toLowerCase()))
+                continue;
+            const remainder = name.slice(base.length);
+            const hasBoundary = /[\u3400-\u9fff]$/.test(base) || /^[\s*·•:：_\-–—/\\]/.test(remainder);
+            if (hasBoundary)
+                return remainder.replace(/^[\s*·•:：_\-–—/\\]+/, "").trim() || name;
+        }
         return name;
     }
 

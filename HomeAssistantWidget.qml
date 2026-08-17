@@ -34,11 +34,10 @@ PluginComponent {
     readonly property int rightColumnWidth: compactContentWidth
     readonly property int browserColumnWidth: 360
     readonly property int expandedPopoutWidth: rightColumnWidth + browserColumnWidth + Theme.spacingS + Theme.spacingM * 2
-    readonly property bool useStackedEditLayout: showEntityBrowser && (CompositorService.isNiri || CompositorService.isHyprland)
-    readonly property int activePopoutWidth: useStackedEditLayout
-        ? compactPopoutWidth
-        : (showEntityBrowser ? expandedPopoutWidth : compactPopoutWidth)
-    readonly property int activePopoutHeight: isEditing ? 800 : 600
+    readonly property bool editModeTwoColumns: pluginData.editModeTwoColumns !== false
+    readonly property bool showTwoColumnEditLayout: isEditing && showEntityBrowser && editModeTwoColumns
+    readonly property bool useStackedEditLayout: showEntityBrowser && !showTwoColumnEditLayout
+    readonly property int activePopoutWidth: showTwoColumnEditLayout ? expandedPopoutWidth : compactPopoutWidth
 
     property bool isEditing: false // Global edit mode state
     property bool manualRefreshInProgress: false
@@ -637,7 +636,8 @@ PluginComponent {
         FocusScope {
             id: popoutScope
             implicitWidth: root.activePopoutWidth
-            implicitHeight: root.activePopoutHeight
+            readonly property real contentHeight: overviewPanel.height + Theme.spacingS + contentFrame.implicitHeight
+            implicitHeight: contentHeight + Theme.spacingM * 2
             focus: true
             
             // Content is immediately ready - no delay to avoid blank screen
@@ -690,8 +690,10 @@ PluginComponent {
 
             Column {
                 id: popoutColumn
-                anchors.fill: parent
-                anchors.margins: Theme.spacingM
+                width: parent.width - Theme.spacingM * 2
+                x: Theme.spacingM
+                y: Theme.spacingM
+                height: popoutScope.contentHeight
                 spacing: Theme.spacingS
 
                 HomeAssistantOverviewPanel {
@@ -710,9 +712,15 @@ PluginComponent {
 
                 Item {
                     id: contentFrame
+                    readonly property real maxContentHeight: Math.max(260,
+                        (root.parentScreen ? root.parentScreen.height : Screen.height)
+                        - 100 - overviewPanel.height - Theme.spacingS - Theme.spacingM * 2)
                     readonly property real stackedBrowserHeight: root.useStackedEditLayout
-                        ? Math.min(340, Math.max(240, height * 0.52))
+                        ? Math.min(340, Math.max(240, maxContentHeight * 0.45))
                         : 0
+                    readonly property real listMaxHeight: root.useStackedEditLayout
+                        ? maxContentHeight - stackedBrowserHeight - Theme.spacingS
+                        : maxContentHeight
                     readonly property real stackedListOffset: root.showEntityBrowser && root.useStackedEditLayout
                         ? stackedBrowserHeight + Theme.spacingS
                         : 0
@@ -721,7 +729,10 @@ PluginComponent {
                         : (root.showEntityBrowser
                         ? root.browserColumnWidth + Theme.spacingS + root.rightColumnWidth
                         : root.compactContentWidth)
-                    height: parent.height - overviewPanel.height - Theme.spacingS
+                    height: implicitHeight
+                    implicitHeight: root.useStackedEditLayout
+                        ? stackedBrowserHeight + Theme.spacingS + rightColumn.preferredHeight
+                        : rightColumn.preferredHeight
                     anchors.horizontalCenter: parent.horizontalCenter
 
                     Item {
@@ -766,6 +777,7 @@ PluginComponent {
                         connectionStatus: globalConnectionStatus.value || "offline"
                         connectionMessage: globalConnectionMessage.value || ""
                         contentReady: popoutScope.contentReady
+                        maxContentHeight: contentFrame.listMaxHeight
                         isEditing: root.isEditing
                         keyboardNavigationActive: root.keyboardNavigationActive
                         selectedEntityId: root.selectedEntityId
@@ -812,5 +824,4 @@ PluginComponent {
     }
 
     popoutWidth: root.activePopoutWidth
-    popoutHeight: root.activePopoutHeight
 }

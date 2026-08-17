@@ -1781,6 +1781,14 @@ Singleton {
         callService("climate", "set_hvac_mode", entityId, {hvac_mode: mode});
     }
 
+    function turnOnClimate(entityId) {
+        callService("climate", "turn_on", entityId, {});
+    }
+
+    function turnOffClimate(entityId) {
+        callService("climate", "turn_off", entityId, {});
+    }
+
     function setPresetMode(entityId, preset) {
         callService("climate", "set_preset_mode", entityId, {preset_mode: preset});
     }

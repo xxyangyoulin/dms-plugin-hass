@@ -14,8 +14,8 @@ Column {
 
     Behavior on opacity {
         NumberAnimation {
-            duration: Theme.expressiveDurations["expressiveEffects"]
-            easing.type: Theme.standardEasing
+            duration: Theme.shorterDuration
+            easing.type: Easing.OutCubic
         }
     }
 }

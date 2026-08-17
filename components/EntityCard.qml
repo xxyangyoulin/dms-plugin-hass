@@ -34,7 +34,15 @@ StyledRect {
     readonly property string entityIconName: _getEntityIcon(entityData && entityData.entityId ? entityData.entityId : "", entityData && entityData.domain ? entityData.domain : "")
     readonly property string stateSummaryText: {
         const translationVersion = HomeAssistantService.translationsVersion;
-        const stateText = HomeAssistantService.formatEntityState(entityData && entityData.domain ? entityData.domain : "", effectiveState, entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "");
+        const domain = entityData && entityData.domain ? entityData.domain : "";
+        let stateText = HomeAssistantService.formatEntityState(domain, effectiveState, entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "");
+        if (domain === "climate") {
+            const targetTemperature = _getEffectiveAttr("temperature", undefined);
+            if (targetTemperature !== undefined && targetTemperature !== null && !isNaN(Number(targetTemperature))) {
+                const temperatureUnit = _getEffectiveAttr("temperature_unit", "°C");
+                stateText += " · " + Number(targetTemperature).toFixed(1) + temperatureUnit;
+            }
+        }
         if (actionError) return stateText + " • " + I18n.tr("Failed", "Entity action failed");
         return stateText;
     }
@@ -98,9 +106,19 @@ StyledRect {
         if (!entity)
             return "";
         const name = entity.friendlyName || entity.entityId || "";
-        const base = entityData && entityData.friendlyName ? entityData.friendlyName.replace(/\s+(空调|灯|开关|风扇|传感器)$/, "").trim() : "";
-        if (base && name.startsWith(base))
-            return name.slice(base.length).replace(/^[\s*]+/, "").trim() || name;
+        const baseName = entityData && entityData.friendlyName ? entityData.friendlyName.trim() : "";
+        const simplifiedBase = baseName
+            .replace(/(?:\s*(?:空调|灯|开关|风扇|传感器)|\s+(?:ac|air conditioner|air conditioning|thermostat|climate|light|lamp|switch|fan|sensor))$/i, "")
+            .trim();
+        const bases = simplifiedBase && simplifiedBase !== baseName ? [baseName, simplifiedBase] : [baseName];
+        for (const base of bases) {
+            if (!base || !name.toLowerCase().startsWith(base.toLowerCase()))
+                continue;
+            const remainder = name.slice(base.length);
+            const hasBoundary = /[\u3400-\u9fff]$/.test(base) || /^[\s*·•:：_\-–—/\\]/.test(remainder);
+            if (hasBoundary)
+                return remainder.replace(/^[\s*·•:：_\-–—/\\]+/, "").trim() || name;
+        }
         return name;
     }
 
@@ -167,10 +185,12 @@ StyledRect {
             else
                 HomeAssistantService.callService("media_player", "media_play", entityId, {});
         } else if (domain === "climate") {
-            const hvacModes = entityData.attributes && entityData.attributes.hvac_modes || ["off", "heat"];
-            const nextState = state === "off" ? (hvacModes.includes("heat") ? "heat" : hvacModes.find((m) => m !== "off") || "heat") : "off";
-            HomeAssistantService.setOptimisticState(entityId, "state", nextState);
-            HomeAssistantService.setHvacMode(entityId, nextState);
+            if (state === "off") {
+                HomeAssistantService.turnOnClimate(entityId);
+            } else {
+                HomeAssistantService.setOptimisticState(entityId, "state", "off");
+                HomeAssistantService.turnOffClimate(entityId);
+            }
         } else {
             let nextState = state === "on" ? "off" : "on";
             if (domain === "cover") nextState = state === "open" ? "closed" : "open";
@@ -313,7 +333,7 @@ StyledRect {
         height: (visible && item) ? Math.max(item.implicitHeight, item.height) : 0
         z: 15
         sourceComponent: entityControlsComp
-        Behavior on opacity { NumberAnimation { duration: 150 } }
+        Behavior on opacity { NumberAnimation { duration: Theme.shorterDuration; easing.type: Easing.OutCubic } }
     }
 
     Component { id: entityControlsComp; EntityControlsView { entityData: entityCard.entityData; compactLabels: true } }
@@ -479,7 +499,7 @@ StyledRect {
             if (domain === "scene") return "palette";
             if (domain === "cover") return state === "open" ? "expand_more" : "expand_less";
             if (domain === "lock") return state === "locked" ? "lock" : "lock_open";
-            if (domain === "climate") return state !== "off" ? "local_fire_department" : "power_settings_new";
+            if (domain === "climate") return "power_settings_new";
             return "power_settings_new";
         }
         onClicked: entityCard._triggerQuickAction()
@@ -616,5 +636,5 @@ StyledRect {
     }
 
     Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
-    Behavior on height { NumberAnimation { duration: Theme.expressiveDurations["expressiveFastSpatial"]; easing.type: Theme.standardEasing } }
+    Behavior on height { NumberAnimation { duration: Theme.shorterDuration; easing.type: Easing.OutCubic } }
 }
