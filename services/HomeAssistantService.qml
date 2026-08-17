@@ -1608,7 +1608,7 @@ Singleton {
         const domain = entityId.split('.')[0];
         let service = "turn_on";
         
-        if (domain === "script" || domain === "automation") {
+        if (domain === "automation") {
             service = "trigger";
         } else if (domain === "button") {
             service = "press";
