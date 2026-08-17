@@ -235,8 +235,9 @@ Item {
                 StyledText {
                     visible: (!EntityHelper.isSwitchable(model) || !root.showButtonsOnStatusBar) && !availabilityIssue
                     text: {
+                        const translationVersion = HomeAssistantService.translationsVersion;
                         var state = model.state;
-                        return HassConstants.formatStateValue(state, model.unitOfMeasurement);
+                        return HomeAssistantService.formatEntityState(model.domain || "", state, model.unitOfMeasurement);
                     }
                     font.pixelSize: Theme.barTextSize(root.barThickness)
                     color: Theme.widgetTextColor || Theme.surfaceText
@@ -274,8 +275,9 @@ Item {
                 StyledText {
                     visible: (!EntityHelper.isSwitchable(model) || !root.showButtonsOnStatusBar) && !availabilityIssue
                     text: {
+                        const translationVersion = HomeAssistantService.translationsVersion;
                         var state = model.state;
-                        return HassConstants.formatStateValue(state, model.unitOfMeasurement);
+                        return HomeAssistantService.formatEntityState(model.domain || "", state, model.unitOfMeasurement);
                     }
                     font.pixelSize: Theme.barTextSize(root.barThickness)
                     color: Theme.widgetTextColor || Theme.surfaceText
@@ -324,11 +326,12 @@ Item {
             HomeAssistantService.triggerScript(id);
             return;
         } else if (domain === "climate") {
-            var hvacModes = modelData.attributes && modelData.attributes.hvac_modes || ["off", "heat"];
-            nextState = state === "off"
-                ? (hvacModes.includes("heat") ? "heat" : hvacModes.find(m => m !== "off") || "heat")
-                : "off";
-            HomeAssistantService.setHvacMode(id, nextState);
+            if (state === "off") {
+                HomeAssistantService.turnOnClimate(id);
+            } else {
+                nextState = "off";
+                HomeAssistantService.turnOffClimate(id);
+            }
         } else {
             // For switchable entities, toggle the state
             if (state === "on") nextState = "off";

@@ -180,13 +180,15 @@ QtObject {
 
         const sections = [];
 
-        sections.push({
-            type: "temperature",
-            value: EntityHelper.getEffectiveValue(entityData, "temperature", 20),
-            step: EntityHelper.getEffectiveValue(entityData, "target_temp_step", 0.5),
-            unit: EntityHelper.getEffectiveValue(entityData, "temperature_unit", "°C"),
-            currentTemperature: EntityHelper.getEffectiveValue(entityData, "current_temperature", undefined)
-        });
+        if (_attr(entityData, "temperature", undefined) !== undefined) {
+            sections.push({
+                type: "temperature",
+                value: EntityHelper.getEffectiveValue(entityData, "temperature", 20),
+                step: EntityHelper.getEffectiveValue(entityData, "target_temp_step", 0.5),
+                unit: EntityHelper.getEffectiveValue(entityData, "temperature_unit", "°C"),
+                currentTemperature: EntityHelper.getEffectiveValue(entityData, "current_temperature", undefined)
+            });
+        }
 
         const hvacModes = EntityHelper.getEffectiveValue(entityData, "hvac_modes", []);
         if (hvacModes && hvacModes.length > 0) {
@@ -194,7 +196,8 @@ QtObject {
                 type: "hvac_modes",
                 value: EntityHelper.getEffectiveValue(entityData, "state", ""),
                 options: hvacModes,
-                label: controlConfig.climate.hvacLabel
+                labels: hvacModes.map(v => HomeAssistantService.translateAttributeValue("climate", "hvac_modes", v)),
+                label: HomeAssistantService.translateAttributeName("climate", "hvac_modes", controlConfig.climate.hvacLabel)
             });
         }
 
@@ -204,7 +207,8 @@ QtObject {
                 type: "fan_modes",
                 value: EntityHelper.getEffectiveValue(entityData, "fan_mode", ""),
                 options: fanModes,
-                label: controlConfig.climate.fanLabel,
+                labels: fanModes.map(v => HomeAssistantService.translateAttributeValue("climate", "fan_modes", v)),
+                label: HomeAssistantService.translateAttributeName("climate", "fan_modes", controlConfig.climate.fanLabel),
                 icon: controlConfig.climate.fanIcon
             });
         }
@@ -215,7 +219,8 @@ QtObject {
                 type: "preset_modes",
                 value: EntityHelper.getEffectiveValue(entityData, "preset_mode", ""),
                 options: presetModes,
-                label: controlConfig.climate.presetLabel
+                labels: presetModes.map(v => HomeAssistantService.translateAttributeValue("climate", "preset_modes", v)),
+                label: HomeAssistantService.translateAttributeName("climate", "preset_modes", controlConfig.climate.presetLabel)
             });
         }
 
@@ -225,7 +230,8 @@ QtObject {
                 type: "swing_modes",
                 value: EntityHelper.getEffectiveValue(entityData, "swing_mode", ""),
                 options: swingModes,
-                label: controlConfig.climate.swingLabel
+                labels: swingModes.map(v => HomeAssistantService.translateAttributeValue("climate", "swing_modes", v)),
+                label: HomeAssistantService.translateAttributeName("climate", "swing_modes", controlConfig.climate.swingLabel)
             });
         }
 
@@ -280,7 +286,8 @@ QtObject {
                 type: "preset_modes",
                 value: EntityHelper.getEffectiveValue(entityData, "preset_mode", ""),
                 options: presetModes,
-                label: controlConfig.fan.presetLabel
+                labels: presetModes.map(v => HomeAssistantService.translateAttributeValue("fan", "preset_modes", v)),
+                label: HomeAssistantService.translateAttributeName("fan", "preset_modes", controlConfig.fan.presetLabel)
             });
         }
 
@@ -304,5 +311,35 @@ QtObject {
         }
 
         return sections;
+    }
+
+    function getOperationCount(entityData) {
+        if (!entityData)
+            return 0;
+
+        switch (entityData.domain) {
+        case "light":
+            return getLightSections(entityData).length;
+        case "climate":
+            return getClimateSections(entityData).length;
+        case "fan":
+            return getFanSections(entityData).length;
+        case "cover":
+            return getCoverSections(entityData).length;
+        case "media_player": {
+            const state = EntityHelper.getEffectiveState(entityData);
+            if (state === "unavailable" || state === "unknown")
+                return 0;
+            let count = state !== "off" ? 1 : 0;
+            if (HassConstants.supportsFeature(entityData, HassConstants.mediaFeature.VOLUME_SET))
+                count++;
+            const sources = EntityHelper.getEffectiveValue(entityData, "source_list", []);
+            if (sources && sources.length > 0)
+                count++;
+            return count;
+        }
+        default:
+            return getGeneralSections(entityData).length;
+        }
     }
 }

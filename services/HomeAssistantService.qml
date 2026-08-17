@@ -37,12 +37,17 @@ Singleton {
     readonly property bool isConfigured: hassUrl !== "" && hassToken !== ""
 
     property var historyCache: ({})
+    property var historyRequests: ({})
 
     readonly property int historyCacheDuration: Components.HassConstants.historyCacheDuration
 
     // Services cache for dynamic controls
     property var servicesCache: ({})
     property bool servicesLoaded: false
+    property var translationsCache: ({})
+    property var translationDomainsLoaded: ({})
+    property var translationDomainsLoading: ({})
+    property int translationsVersion: 0
 
     // Entity Overrides (Friendly Name)
     property var entityOverrides: ({})
@@ -77,30 +82,39 @@ Singleton {
     }
 
     function findCachedEntityIndex(entityId) {
-        if (!cachedAllEntities) return -1;
-        for (let i = 0; i < cachedAllEntities.length; i++) {
-            if (cachedAllEntities[i].entityId === entityId) {
-                return i;
-            }
-        }
-        return -1;
+        const index = cachedEntityIndexes[entityId];
+        return index === undefined ? -1 : index;
     }
 
     function getCachedEntity(entityId) {
-        const index = findCachedEntityIndex(entityId);
-        return index >= 0 ? cachedAllEntities[index] : null;
+        return cachedEntityById[entityId] || null;
+    }
+
+    function rebuildCachedEntityIndexes() {
+        const byId = {};
+        const indexes = {};
+        for (let i = 0; i < cachedAllEntities.length; i++) {
+            const entity = cachedAllEntities[i];
+            byId[entity.entityId] = entity;
+            indexes[entity.entityId] = i;
+        }
+        cachedEntityById = byId;
+        cachedEntityIndexes = indexes;
     }
 
     function upsertCachedEntity(entity) {
         if (!entity) return;
-        const nextEntities = Array.from(cachedAllEntities || []);
         const index = findCachedEntityIndex(entity.entityId);
         if (index >= 0) {
-            nextEntities[index] = entity;
+            cachedAllEntities[index] = entity;
         } else {
-            nextEntities.push(entity);
+            cachedEntityIndexes[entity.entityId] = cachedAllEntities.length;
+            cachedAllEntities.push(entity);
+            allEntitiesStructureDirty = true;
         }
-        cachedAllEntities = nextEntities;
+        cachedEntityById[entity.entityId] = entity;
+        if (!allEntitiesPublishTimer.running)
+            allEntitiesPublishTimer.start();
     }
 
     function applyOptimisticState(entity) {
@@ -118,14 +132,6 @@ Singleton {
             }
         }
         return nextEntity;
-    }
-
-    function buildEntityMap(entities) {
-        const entityMap = {};
-        for (const entity of entities || []) {
-            entityMap[entity.entityId] = entity;
-        }
-        return entityMap;
     }
 
     function buildMonitoredEntities(entityIdsList, entityMap) {
@@ -162,7 +168,6 @@ Singleton {
             if (cachedEntity) {
                 upsertCachedEntity(Object.assign({}, cachedEntity, { friendlyName: newName }));
             }
-            PluginService.setGlobalVar(pluginId, "allEntities", cachedAllEntities);
             reprocessMonitoredEntities(); // This pushes changes to global "entities" var
         }
         
@@ -171,9 +176,10 @@ Singleton {
     }
 
     // Devices cache for entity grouping by device
-    property var devicesCache: ({})  // { "Device Name": ["entity_id1", "entity_id2", ...] }
-    property var entityToDeviceCache: ({}) // { "entity_id1": "Device Name" }
+    property var devicesCache: ({})
+    property var entityToDeviceCache: ({})
     property bool devicesLoaded: false
+    property bool devicesLoading: false
     property string lastMonitoredIdsStr: "" // Tracks structure to avoid jitter
     property string wsUrl: {
         if (!hassUrl) return "";
@@ -364,7 +370,7 @@ Singleton {
                     if (suppressReconnect) {
                         setConnectionState("auth_error", connectionMessage || wsLoader.item.errorString);
                     } else {
-                        setConnectionState("offline", wsLoader.item.errorString || "WebSocket error");
+                        setConnectionState("offline", wsLoader.item.errorString || I18n.tr("WebSocket error", "Home Assistant connection error"));
                         if (!wsLoader.item.reconnectPending)
                             reconnectTimer.start();
                     }
@@ -376,10 +382,10 @@ Singleton {
                     PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
                     clearCallbacks("WebSocket Closed");
                     if (suppressReconnect) {
-                        setConnectionState("auth_error", connectionMessage || "Authentication failed");
+                        setConnectionState("auth_error", connectionMessage || I18n.tr("Authentication failed", "Home Assistant authentication error"));
                         suppressReconnect = false;
                     } else {
-                        setConnectionState("offline", "Disconnected from Home Assistant");
+                        setConnectionState("offline", I18n.tr("Disconnected from Home Assistant", "Home Assistant connection error"));
                         if (!wsLoader.item.reconnectPending)
                             reconnectTimer.start();
                     }
@@ -387,7 +393,7 @@ Singleton {
                     currentReconnectInterval = 5000;
                     haAvailable = false;
                     PluginService.setGlobalVar(pluginId, "haAvailable", false);
-                    setConnectionState("connecting", "Authenticating with Home Assistant");
+                    setConnectionState("connecting", I18n.tr("Authenticating with Home Assistant", "Home Assistant connecting state"));
                     reconnectTimer.stop();
                 }
             }
@@ -431,9 +437,9 @@ Singleton {
                         root.latency = Date.now() - root.lastPingTime;
                         PluginService.setGlobalVar(pluginId, "latency", root.latency);
                         setConnectionState(root.latency >= 1000 ? "degraded" : "online",
-                                           root.latency >= 1000 ? "Home Assistant connection is slow" : "");
+                                           root.latency >= 1000 ? I18n.tr("Home Assistant connection is slow", "Home Assistant degraded connection") : "");
                     } else if (response && response.success === false) {
-                        setConnectionState("degraded", "Home Assistant ping timed out");
+                        setConnectionState("degraded", I18n.tr("Home Assistant ping timed out", "Home Assistant degraded connection"));
                     }
                 });
             } else {
@@ -447,6 +453,26 @@ Singleton {
         interval: 100
         repeat: false
         onTriggered: reprocessMonitoredEntities()
+    }
+
+    Timer {
+        id: registryRefreshTimer
+        interval: 250
+        repeat: false
+        onTriggered: fetchDevices(true)
+    }
+
+    Timer {
+        id: allEntitiesPublishTimer
+        interval: 100
+        repeat: false
+        onTriggered: {
+            PluginService.setGlobalVar(pluginId, "allEntities", Array.from(cachedAllEntities || []));
+            if (allEntitiesStructureDirty) {
+                allEntitiesStructureDirty = false;
+                allEntitiesStructureChanged();
+            }
+        }
     }
 
     Timer {
@@ -676,7 +702,9 @@ Singleton {
 
     function initialize() {
         setConnectionState(isConfigured ? "connecting" : "offline",
-                           isConfigured ? "Connecting to Home Assistant" : "Configure Home Assistant URL and token");
+                           isConfigured
+                               ? I18n.tr("Connecting to Home Assistant", "Home Assistant connecting state")
+                               : I18n.tr("Configure Home Assistant URL and token", "Home Assistant configuration required"));
         fetchServices();
         fetchDevices();
         refresh(); // Initial fetch via REST to get data immediately
@@ -694,13 +722,12 @@ Singleton {
                 }
             });
 
-            // 2. Only fetch metadata if not already loaded (avoid unnecessary refreshes)
+            // 2. Refresh metadata together with an explicit state refresh
             if (!servicesLoaded) {
                 fetchServices();
             }
-            if (!devicesLoaded) {
-                fetchDevices();
-            }
+            fetchDevices(true);
+            fetchTranslations();
         } else {
             fetchEntities(true);
         }
@@ -722,7 +749,7 @@ Singleton {
 
     function handleWsMessage(data) {
         if (data.type === "auth_required") {
-            setConnectionState("connecting", "Authenticating with Home Assistant");
+            setConnectionState("connecting", I18n.tr("Authenticating with Home Assistant", "Home Assistant connecting state"));
             socket.sendTextMessage(JSON.stringify({
                 type: "auth",
                 access_token: root.hassToken
@@ -734,13 +761,15 @@ Singleton {
             setConnectionState("online", "");
             pingTimer.start();
 
-            // Subscribe to state changes
+            // Subscribe to state and registry changes
             sendWsMessage({ type: "subscribe_events", event_type: "state_changed" });
+            sendWsMessage({ type: "subscribe_events", event_type: "entity_registry_updated" });
+            sendWsMessage({ type: "subscribe_events", event_type: "device_registry_updated" });
             
             // Trigger metadata and state fetch after auth
             Qt.callLater(() => {
                 fetchServices();
-                fetchDevices();
+                fetchTranslations();
                 refresh();
                 
                 // Trigger immediate ping to get initial latency
@@ -750,7 +779,7 @@ Singleton {
                         root.latency = Date.now() - root.lastPingTime;
                         PluginService.setGlobalVar(pluginId, "latency", root.latency);
                     } else if (response && response.success === false) {
-                        setConnectionState("degraded", "Home Assistant ping timed out");
+                        setConnectionState("degraded", I18n.tr("Home Assistant ping timed out", "Home Assistant degraded connection"));
                     }
                 });
             });
@@ -759,7 +788,7 @@ Singleton {
             wsAuthenticated = false;
             haAvailable = false;
             PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
-            setConnectionState("auth_error", data.message || "Authentication failed");
+            setConnectionState("auth_error", data.message || I18n.tr("Authentication failed", "Home Assistant authentication error"));
             suppressReconnect = true;
             pingTimer.stop();
             socket.active = false;
@@ -772,6 +801,10 @@ Singleton {
                     // new_state is null means entity was removed from HA state machine
                     handleWsEntityRemoved(eventData.entity_id);
                 }
+            } else if (data.event.event_type === "entity_registry_updated"
+                       || data.event.event_type === "device_registry_updated") {
+                devicesLoaded = false;
+                registryRefreshTimer.restart();
             }
         } else if (data.type === "result" || data.type === "pong") {
             if (wsCallbacks[data.id]) {
@@ -794,8 +827,11 @@ Singleton {
          }
 
          cachedAllEntities = allEntities;
-         PluginService.setGlobalVar(pluginId, "allEntities", allEntities);
-         const monitoredEntities = buildMonitoredEntities(parsedEntityIds, buildEntityMap(allEntities));
+         rebuildCachedEntityIndexes();
+         PluginService.setGlobalVar(pluginId, "allEntities", Array.from(allEntities));
+         allEntitiesStructureChanged();
+         fetchTranslations();
+         const monitoredEntities = buildMonitoredEntities(parsedEntityIds, cachedEntityById);
 
          const newIds = monitoredEntities.map(e => e.entityId).join(",");
          lastMonitoredIdsStr = newIds;
@@ -946,6 +982,9 @@ Singleton {
         cachedAllEntities = cachedAllEntities.filter(e => e.entityId !== entityId);
         
         if (oldLen !== cachedAllEntities.length) {
+            rebuildCachedEntityIndexes();
+            allEntitiesStructureDirty = true;
+            allEntitiesPublishTimer.restart();
             // Trigger batch update to refresh UI lists
             batchUpdateTimer.start();
         }
@@ -975,6 +1014,147 @@ Singleton {
         });
     }
 
+    function hassLanguage() {
+        const locale = I18n.currentLocale || Qt.locale().name || "en";
+        const normalized = locale.replace("_", "-");
+        if (normalized === "zh-CN" || normalized === "zh-Hans-CN" || normalized === "zh")
+            return "zh-Hans";
+        if (normalized === "zh-TW" || normalized === "zh-HK" || normalized === "zh-Hant")
+            return "zh-Hant";
+        return normalized;
+    }
+
+    function _entityDomains() {
+        const domains = [];
+        for (let i = 0; i < cachedAllEntities.length; i++) {
+            const domain = cachedAllEntities[i].domain || "";
+            if (domain && domains.indexOf(domain) < 0)
+                domains.push(domain);
+        }
+        return domains;
+    }
+
+    function fetchTranslations(domains) {
+        if (!canUseWebSocketApi())
+            return;
+
+        const requestedDomains = domains && domains.length > 0 ? domains : _entityDomains();
+        const language = hassLanguage();
+        for (let i = 0; i < requestedDomains.length; i++) {
+            const domain = requestedDomains[i];
+            if (!domain || translationDomainsLoaded[domain] || translationDomainsLoading[domain])
+                continue;
+
+            var loading = Object.assign({}, translationDomainsLoading);
+            loading[domain] = true;
+            translationDomainsLoading = loading;
+
+            sendWsMessage({
+                type: "frontend/get_translations",
+                language: language,
+                category: "entity_component",
+                integration: domain
+            }, (response) => {
+                var nextLoading = Object.assign({}, translationDomainsLoading);
+                delete nextLoading[domain];
+                translationDomainsLoading = nextLoading;
+
+                if (response.success && response.result) {
+                    translationsCache = Object.assign({}, translationsCache, response.result.resources || {});
+                    var loaded = Object.assign({}, translationDomainsLoaded);
+                    loaded[domain] = true;
+                    translationDomainsLoaded = loaded;
+                    translationsVersion++;
+                    translationsChanged();
+                    return;
+                }
+                console.warn("HomeAssistantMonitor: Failed to fetch translations for", domain, response.error ? JSON.stringify(response.error) : "");
+            });
+        }
+    }
+
+    function _translationPath(path) {
+        const flatKey = path.join(".");
+        if (translationsCache && translationsCache[flatKey] !== undefined)
+            return translationsCache[flatKey];
+
+        let node = translationsCache;
+        for (let i = 0; i < path.length; i++) {
+            if (!node || node[path[i]] === undefined)
+                return "";
+            node = node[path[i]];
+        }
+        return typeof node === "string" ? node : "";
+    }
+
+    function translateEntityState(domain, state) {
+        if (!domain || state === undefined || state === null)
+            return state || "";
+        fetchTranslations([domain]);
+        const value = String(state);
+        return _translationPath(["component", domain, "entity_component", "_", "state", value])
+            || value;
+    }
+
+    function _translationAttributeName(attrName) {
+        switch (attrName) {
+        case "hvac_modes":
+            return "hvac_modes";
+        case "fan_modes":
+            return "fan_mode";
+        case "preset_modes":
+            return "preset_mode";
+        case "swing_modes":
+            return "swing_mode";
+        default:
+            return attrName;
+        }
+    }
+
+    function translateAttributeValue(domain, attrName, value) {
+        if (!domain || value === undefined || value === null)
+            return value || "";
+        fetchTranslations([domain]);
+
+        if (domain === "climate" && attrName === "hvac_modes")
+            return translateEntityState(domain, value);
+
+        const translated = _translationPath([
+            "component",
+            domain,
+            "entity_component",
+            "_",
+            "state_attributes",
+            _translationAttributeName(attrName),
+            "state",
+            String(value)
+        ]);
+        return translated
+            || String(value);
+    }
+
+    function translateAttributeName(domain, attrName, fallback) {
+        fetchTranslations([domain]);
+        const translated = _translationPath([
+            "component",
+            domain,
+            "entity_component",
+            "_",
+            "state_attributes",
+            _translationAttributeName(attrName),
+            "name"
+        ]);
+        return translated || fallback || attrName;
+    }
+
+    function formatEntityState(domain, state, unitOfMeasurement) {
+        const val = state || "?";
+        const unit = unitOfMeasurement || "";
+        if (unit && val !== "unavailable" && val !== "unknown")
+            return val + unit;
+        return translateEntityState(domain, val);
+    }
+
     // Get service definition for a specific domain and service
     function getServiceFields(domain, service) {
         if (!servicesCache[domain]) return null;
@@ -983,12 +1163,14 @@ Singleton {
     }
 
     // Fetch devices and entities registry to build the device mapping via WebSocket
-    function fetchDevices() {
-        if (devicesLoaded || !canUseWebSocketApi()) return;
+    function fetchDevices(forceRefresh) {
+        if (devicesLoading || (!forceRefresh && devicesLoaded) || !canUseWebSocketApi()) return;
+        devicesLoading = true;
         
         // 1. Get Device Registry
         sendWsMessage({ type: "config/device_registry/list" }, (devResponse) => {
             if (!devResponse.success) {
+                devicesLoading = false;
                 console.error("HomeAssistantMonitor: Failed to fetch device registry");
                 return;
             }
@@ -996,6 +1178,7 @@ Singleton {
             // 2. Get Entity Registry
             sendWsMessage({ type: "config/entity_registry/list" }, (entResponse) => {
                 if (!entResponse.success) {
+                    devicesLoading = false;
                     console.error("HomeAssistantMonitor: Failed to fetch entity registry");
                     return;
                 }
@@ -1004,31 +1187,30 @@ Singleton {
                     const devices = Array.isArray(devResponse.result) ? devResponse.result : [];
                     const entities = Array.isArray(entResponse.result) ? entResponse.result : [];
                     
-                    const deviceIdToName = {};
+                    const newDevicesCache = {};
                     devices.forEach(d => {
-                        deviceIdToName[d.id] = d.name_by_user || d.name || "Unknown Device";
+                        newDevicesCache[d.id] = {
+                            name: d.name_by_user || d.name || "Unknown Device",
+                            entityIds: []
+                        };
                     });
 
-                    const newDevicesCache = {};
                     const newEntityToDeviceCache = {};
 
                     entities.forEach(e => {
-                        if (e.device_id && deviceIdToName[e.device_id]) {
-                            const deviceName = deviceIdToName[e.device_id];
-                            if (!newDevicesCache[deviceName]) {
-                                newDevicesCache[deviceName] = [];
-                            }
-                            newDevicesCache[deviceName].push(e.entity_id);
-                            newEntityToDeviceCache[e.entity_id] = deviceName;
+                        if (e.device_id && newDevicesCache[e.device_id]) {
+                            newDevicesCache[e.device_id].entityIds.push(e.entity_id);
+                            newEntityToDeviceCache[e.entity_id] = e.device_id;
                         }
                     });
 
                     devicesCache = newDevicesCache;
                     entityToDeviceCache = newEntityToDeviceCache;
                     devicesLoaded = true;
+                    devicesLoading = false;
                     
-                    PluginService.setGlobalVar(pluginId, "devicesCache", newDevicesCache);
                 } catch (e) {
+                    devicesLoading = false;
                     console.error("HomeAssistantMonitor: Failed to process registry data:", e);
                 }
             });
@@ -1143,7 +1325,10 @@ Singleton {
     }
 
     function fetchHistory(entityId, callback) {
-        if (!hassUrl || !hassToken) return;
+        if (!hassUrl || !hassToken) {
+            if (callback) callback([]);
+            return;
+        }
 
         const now = Date.now();
         const cache = historyCache[entityId];
@@ -1152,6 +1337,12 @@ Singleton {
             if (callback) callback(cache.data);
             return;
         }
+
+        if (historyRequests[entityId]) {
+            if (callback) historyRequests[entityId].push(callback);
+            return;
+        }
+        historyRequests[entityId] = callback ? [callback] : [];
 
         const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
         const endpoint = `/api/history/period/${yesterday}?filter_entity_id=${entityId}&minimal_response`;
@@ -1171,24 +1362,33 @@ Singleton {
 
                         const cacheEntry = { data: history, timestamp: now };
                         historyCache = Object.assign({}, historyCache, { [entityId]: cacheEntry });
-                        if (callback) callback(history);
+                        finishHistoryRequest(entityId, history);
                     } else {
                         console.warn("HomeAssistantMonitor: Unexpected history format from REST API");
-                        if (callback) callback([]);
+                        finishHistoryRequest(entityId, []);
                     }
                 } catch (e) {
                     console.error("HomeAssistantMonitor: Failed to parse REST history:", e);
-                    if (callback) callback([]);
+                    finishHistoryRequest(entityId, []);
                 }
             } else {
                 console.error("HomeAssistantMonitor: REST history request failed, exitCode:", exitCode);
-                if (callback) callback([]);
+                finishHistoryRequest(entityId, []);
             }
         });
     }
 
+    function finishHistoryRequest(entityId, data) {
+        const callbacks = historyRequests[entityId] || [];
+        delete historyRequests[entityId];
+        callbacks.forEach(callback => callback(data));
+    }
+
     // Cache for all entities to avoid re-fetching on local updates
     property var cachedAllEntities: []
+    property var cachedEntityById: ({})
+    property var cachedEntityIndexes: ({})
+    property bool allEntitiesStructureDirty: false
 
     function parseEntityIds() {
         if (!entityIds || entityIds.trim() === "") {
@@ -1250,9 +1450,12 @@ Singleton {
                     }
 
                     cachedAllEntities = allEntities;
+                    rebuildCachedEntityIndexes();
 
-                    PluginService.setGlobalVar(pluginId, "allEntities", allEntities);
-                    const monitoredEntities = buildMonitoredEntities(parsedEntityIds, buildEntityMap(allEntities));
+                    PluginService.setGlobalVar(pluginId, "allEntities", Array.from(allEntities));
+                    allEntitiesStructureChanged();
+                    fetchTranslations();
+                    const monitoredEntities = buildMonitoredEntities(parsedEntityIds, cachedEntityById);
 
                     // 2. Only update the "heavy" list model if the structure changed
                     // (length changed or IDs changed)
@@ -1265,7 +1468,7 @@ Singleton {
                     // Always update to ensure data flow, UI ListModel will handle smoothing
                     haAvailable = true;
                     if (!canUseWebSocketApi()) {
-                        setConnectionState("degraded", "Using REST fallback");
+                        setConnectionState("degraded", I18n.tr("Using REST fallback", "Home Assistant degraded connection"));
                     }
                     updateEntities(monitoredEntities);
                     if (shouldEmitRefreshCompletion) refreshCompleted(true);
@@ -1274,7 +1477,7 @@ Singleton {
                     console.error("HomeAssistantMonitor: Failed to parse HA response:", e);
                     haAvailable = false;
                     PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
-                    setConnectionState("offline", "Failed to parse Home Assistant response");
+                    setConnectionState("offline", I18n.tr("Failed to parse Home Assistant response", "Home Assistant connection error"));
                     // Keep old data, don't clear (consistent with network failure handling)
                     updateEntities(cachedAllEntities);
                     if (shouldEmitRefreshCompletion) refreshCompleted(false);
@@ -1284,7 +1487,7 @@ Singleton {
                 // Keep old data, don't clear
                 haAvailable = false;
                 PluginService.setGlobalVar(pluginId, "haAvailable", false);
-                setConnectionState("offline", "Failed to fetch Home Assistant states");
+                setConnectionState("offline", I18n.tr("Failed to fetch Home Assistant states", "Home Assistant connection error"));
                 statesFailureBackoffMs = statesFailureBackoffMs > 0
                     ? Math.min(60000, statesFailureBackoffMs * 2)
                     : 5000;
@@ -1304,7 +1507,7 @@ Singleton {
         const monitoredEntities = [];
 
         if (cachedAllEntities && cachedAllEntities.length > 0) {
-            monitoredEntities.push(...buildMonitoredEntities(parsedEntityIds, buildEntityMap(cachedAllEntities)));
+            monitoredEntities.push(...buildMonitoredEntities(parsedEntityIds, cachedEntityById));
             updateEntities(monitoredEntities);
         } else {
             refresh();
@@ -1438,7 +1641,7 @@ Singleton {
         if (!hassUrl || !hassToken) {
             console.error("HomeAssistantMonitor: Cannot call service - HA not configured");
             if (entityId) {
-                setEntityActionState(entityId, "error", service, "Home Assistant is not configured");
+                setEntityActionState(entityId, "error", service, I18n.tr("Home Assistant is not configured", "Entity action error"));
             }
             return;
         }
@@ -1461,7 +1664,7 @@ Singleton {
             } else {
                 console.error("HomeAssistantMonitor: Service call failed");
                 if (entityId) {
-                    setEntityActionState(entityId, "error", service, "Service call failed");
+                    setEntityActionState(entityId, "error", service, I18n.tr("Service call failed", "Entity action error"));
                     fetchEntity(entityId);
                 }
             }
@@ -1578,6 +1781,14 @@ Singleton {
         callService("climate", "set_hvac_mode", entityId, {hvac_mode: mode});
     }
 
+    function turnOnClimate(entityId) {
+        callService("climate", "turn_on", entityId, {});
+    }
+
+    function turnOffClimate(entityId) {
+        callService("climate", "turn_off", entityId, {});
+    }
+
     function setPresetMode(entityId, preset) {
         callService("climate", "set_preset_mode", entityId, {preset_mode: preset});
     }
@@ -1686,6 +1897,8 @@ Singleton {
     signal entityDataChanged(string entityId)  // Unified signal when any entity data changes
     signal entityActionStateChanged(string entityId)
     signal refreshCompleted(bool success)
+    signal translationsChanged()
+    signal allEntitiesStructureChanged()
 
     function setOptimisticState(entityId, key, value) {
         var states = Object.assign({}, optimisticStates);
@@ -1925,7 +2138,7 @@ Singleton {
                     timedOutIds[i].entityId,
                     "success",
                     timedOutIds[i].action,
-                    "Action sent, waiting for Home Assistant state sync"
+                    I18n.tr("Action sent, waiting for Home Assistant state sync", "Entity action status")
                 );
             }
 

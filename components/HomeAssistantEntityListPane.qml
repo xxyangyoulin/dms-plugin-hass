@@ -12,6 +12,7 @@ Column {
     property string connectionStatus: "offline"
     property string connectionMessage: ""
     property bool contentReady: false
+    property real maxContentHeight
     property bool isEditing: false
     property bool keyboardNavigationActive: false
     property string selectedEntityId: ""
@@ -21,6 +22,20 @@ Column {
     property bool showAttributes: true
     property var customIcons: ({})
     property var visibilityRules: ({})
+    property var deviceExtraEntities: ({})
+    property var allEntities: []
+    property var devicesCache: ({})
+    property var entityToDeviceCache: ({})
+    readonly property var entityById: {
+        const map = {};
+        for (const entity of root.allEntities || [])
+            map[entity.entityId] = entity;
+        return map;
+    }
+    readonly property real preferredHeight: {
+        const contentHeight = (root.entities || []).length > 0 ? entityList.contentHeight : 260;
+        return Math.min(root.maxContentHeight, Math.max(260, contentHeight));
+    }
 
     signal requestListView(ListView listView)
     signal requestToggleExpand(string entityId)
@@ -29,9 +44,47 @@ Column {
     signal requestRemoveEntity(string entityId)
     signal requestOpenIconPicker(string entityId)
     signal requestSetVisibility(string entityId, var rule)
+    signal requestAddExtra(string mainEntityId, string extraEntityId)
+    signal requestRemoveExtra(string mainEntityId, string extraEntityId)
+
+    function extraEntityIdsFor(entityId) {
+        return root.deviceExtraEntities[entityId] || [];
+    }
+
+    function extraEntitiesFor(entityId) {
+        const ids = extraEntityIdsFor(entityId);
+        return ids.map(id => root.entityById[id]).filter(e => e !== undefined);
+    }
+
+    function fallbackDeviceEntityIds(entityId) {
+        const objectId = (entityId || "").split(".")[1] || "";
+        const parts = objectId.split("_");
+        for (let length = parts.length; length >= 4; length--) {
+            const prefix = parts.slice(0, length).join("_");
+            const matches = (root.allEntities || [])
+                .map(e => e.entityId)
+                .filter(id => {
+                    const candidate = (id || "").split(".")[1] || "";
+                    return candidate === prefix || candidate.startsWith(prefix + "_");
+                });
+            if (matches.length > 1)
+                return matches;
+        }
+        return [];
+    }
+
+    function relatedEntitiesFor(entityId) {
+        const deviceId = root.entityToDeviceCache[entityId];
+        const device = deviceId ? root.devicesCache[deviceId] : null;
+        const ids = device ? device.entityIds : (root.isEditing ? fallbackDeviceEntityIds(entityId) : []);
+        return (ids || [])
+            .filter(id => id !== entityId)
+            .map(id => root.entityById[id])
+            .filter(e => e !== undefined);
+    }
 
     width: parent ? parent.width : implicitWidth
-    height: parent ? parent.height : implicitHeight
+    height: parent ? parent.height : preferredHeight
     spacing: Theme.spacingS
 
     EmptyState {
@@ -67,19 +120,15 @@ Column {
         }
 
         move: Transition {
-            NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { properties: "y"; duration: Theme.shorterDuration; easing.type: Easing.OutCubic }
         }
         moveDisplaced: Transition {
-            NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { properties: "y"; duration: Theme.shorterDuration; easing.type: Easing.OutCubic }
         }
         add: Transition {
             NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
             NumberAnimation { property: "scale"; from: 0.9; to: 1; duration: 200 }
         }
-        displaced: Transition {
-            NumberAnimation { properties: "y"; duration: 200; easing.type: Easing.OutCubic }
-        }
-
         Component.onCompleted: root.requestListView(entityList)
         onVisibleChanged: if (visible) root.requestListView(entityList)
 
@@ -92,9 +141,11 @@ Column {
             readonly property var rowEntityData: !isShortcutRow && entityIndex >= 0 && entityIndex < (root.entities || []).length
                 ? root.entities[entityIndex]
                 : null
+            readonly property bool rowExpanded: rowEntityData ? (root.expandedEntities[rowEntityData.entityId] || false) : false
 
             width: entityList.width
             height: isShortcutRow ? shortcutsRow.contentHeight : entityCardDelegate.height
+            z: rowExpanded ? 10 : 0
 
             ShortcutsGrid {
                 id: shortcutsRow
@@ -108,13 +159,16 @@ Column {
                 visible: !parent.isShortcutRow && !!parent.rowEntityData
                 width: parent.width
                 entityData: parent.rowEntityData
-                isExpanded: rowEntityData ? (root.expandedEntities[rowEntityData.entityId] || false) : false
+                isExpanded: parent.rowExpanded
                 isCurrentItem: rowEntityData ? (root.keyboardNavigationActive && root.selectedEntityId === rowEntityData.entityId) : false
                 isPinned: rowEntityData ? root.pinnedEntityIds.includes(rowEntityData.entityId) : false
                 detailsExpanded: rowEntityData ? (root.showEntityDetails[rowEntityData.entityId] || false) : false
                 showAttributes: root.showAttributes
                 customIcons: root.customIcons
                 visibilityRule: rowEntityData ? (root.visibilityRules[rowEntityData.entityId] || null) : null
+                extraEntityIds: rowEntityData ? root.extraEntityIdsFor(rowEntityData.entityId) : []
+                extraEntities: rowEntityData ? root.extraEntitiesFor(rowEntityData.entityId) : []
+                relatedEntities: rowEntityData ? root.relatedEntitiesFor(rowEntityData.entityId) : []
                 isEditing: root.isEditing
 
                 onToggleExpand: if (rowEntityData) root.requestToggleExpand(rowEntityData.entityId)
@@ -123,6 +177,8 @@ Column {
                 onRemoveEntity: if (rowEntityData) root.requestRemoveEntity(rowEntityData.entityId)
                 onOpenIconPicker: if (rowEntityData) root.requestOpenIconPicker(rowEntityData.entityId)
                 onSetVisibility: rule => { if (rowEntityData) root.requestSetVisibility(rowEntityData.entityId, rule) }
+                onAddExtraEntity: extraEntityId => { if (rowEntityData) root.requestAddExtra(rowEntityData.entityId, extraEntityId) }
+                onRemoveExtraEntity: extraEntityId => { if (rowEntityData) root.requestRemoveExtra(rowEntityData.entityId, extraEntityId) }
             }
         }
 

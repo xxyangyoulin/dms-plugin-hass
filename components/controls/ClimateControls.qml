@@ -10,9 +10,12 @@ Column {
     id: root
 
     required property var entityData
+    property bool compactLabels: false
+    readonly property bool showSectionLabels: !compactLabels || sections.length > 1
     property var sections: []
 
     function refreshSections() {
+        const translationVersion = HomeAssistantService.translationsVersion;
         const latestEntityData = entityData && entityData.entityId
             ? (HomeAssistantService.getEntityData(entityData.entityId) || entityData)
             : entityData;
@@ -32,6 +35,10 @@ Column {
             if (root.entityData && root.entityData.entityId === entityId)
                 root.refreshSections();
         }
+
+        function onTranslationsChanged() {
+            root.refreshSections();
+        }
     }
 
     Repeater {
@@ -41,6 +48,7 @@ Column {
             required property var modelData
 
             width: root.width
+            height: item ? Math.max(item.implicitHeight, item.height) : 0
             property var section: modelData
             onLoaded: {
                 if (item)
@@ -72,6 +80,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: I18n.tr("Temperature Control", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
@@ -160,7 +169,8 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
-                text: I18n.tr(section.label, "Control label")
+                visible: root.showSectionLabels
+                text: section.label
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -169,6 +179,7 @@ Column {
                 width: parent.width
                 value: parent.section.value
                 options: parent.section.options
+                labels: parent.section.labels || []
                 icon: parent.section.icon || ""
                 onSelected: (v) => {
                     switch (parent.section.type) {

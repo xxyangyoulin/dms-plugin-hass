@@ -11,9 +11,12 @@ Column {
 
     required property var entityData
     readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
+    property bool compactLabels: false
+    readonly property bool showSectionLabels: !compactLabels || sections.length > 1
     property var sections: []
 
     function refreshSections() {
+        const translationVersion = HomeAssistantService.translationsVersion;
         const latestEntityData = entityData && entityData.entityId
             ? (HomeAssistantService.getEntityData(entityData.entityId) || entityData)
             : entityData;
@@ -33,6 +36,10 @@ Column {
             if (root.entityData && root.entityData.entityId === entityId)
                 root.refreshSections();
         }
+
+        function onTranslationsChanged() {
+            root.refreshSections();
+        }
     }
 
     Repeater {
@@ -42,6 +49,7 @@ Column {
             required property var modelData
 
             width: root.width
+            height: item ? Math.max(item.implicitHeight, item.height) : 0
             property var section: modelData
             onLoaded: {
                 if (item)
@@ -74,7 +82,8 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
-                text: I18n.tr("Speed", "Control label")
+                visible: root.showSectionLabels
+                text: HomeAssistantService.translateAttributeName("fan", "percentage", I18n.tr("Speed", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -104,7 +113,8 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
-                text: I18n.tr("Speed", "Control label")
+                visible: root.showSectionLabels
+                text: HomeAssistantService.translateAttributeName("fan", "percentage", I18n.tr("Speed", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -132,7 +142,8 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
-                text: I18n.tr("Oscillation", "Control label")
+                visible: root.showSectionLabels
+                text: HomeAssistantService.translateAttributeName("fan", "oscillating", I18n.tr("Oscillation", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -189,7 +200,8 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
-                text: I18n.tr("Preset", "Control label")
+                visible: root.showSectionLabels
+                text: parent.section.label
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -198,6 +210,7 @@ Column {
                 width: parent.width
                 value: parent.section.value
                 options: parent.section.options
+                labels: parent.section.labels || []
                 onSelected: (v) => {
                     HomeAssistantService.setOptimisticState(root.entityData.entityId, "preset_mode", v);
                     HomeAssistantService.setOption(root.entityData.entityId, "fan", "preset_mode", v);

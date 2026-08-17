@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import "." as Components
+import "../services"
 import qs.Common
 import qs.Widgets
 
@@ -8,10 +9,41 @@ Column {
     id: root
 
     required property var relatedEntities
+    property bool isEditing: false
+    property bool pickerVisible: true
+    property string baseName: ""
+    property var selectedEntityIds: []
+
+    signal addEntity(string entityId)
+    signal removeEntity(string entityId)
+
+    function isSelected(entityId) {
+        return selectedEntityIds.includes(entityId);
+    }
+
+    function shortEntityName(entity) {
+        if (!entity)
+            return "";
+        const name = entity.friendlyName || entity.entityId || "";
+        const baseName = root.baseName.trim();
+        const simplifiedBase = baseName
+            .replace(/(?:\s*(?:空调|灯|开关|风扇|传感器)|\s+(?:ac|air conditioner|air conditioning|thermostat|climate|light|lamp|switch|fan|sensor))$/i, "")
+            .trim();
+        const bases = simplifiedBase && simplifiedBase !== baseName ? [baseName, simplifiedBase] : [baseName];
+        for (const base of bases) {
+            if (!base || !name.toLowerCase().startsWith(base.toLowerCase()))
+                continue;
+            const remainder = name.slice(base.length);
+            const hasBoundary = /[\u3400-\u9fff]$/.test(base) || /^[\s*·•:：_\-–—/\\]/.test(remainder);
+            if (hasBoundary)
+                return remainder.replace(/^[\s*·•:：_\-–—/\\]+/, "").trim() || name;
+        }
+        return name;
+    }
 
     width: parent ? parent.width : implicitWidth
     spacing: Theme.spacingS
-    visible: root.relatedEntities && root.relatedEntities.length > 0
+    visible: root.pickerVisible && (root.isEditing || (root.relatedEntities && root.relatedEntities.length > 0))
 
     StyledText {
         text: I18n.tr("Connected Entities", "Control label")
@@ -19,16 +51,17 @@ Column {
         color: Theme.surfaceVariantText
     }
 
-    Flow {
+    Column {
         width: parent.width
         spacing: Theme.spacingS
+        visible: root.relatedEntities && root.relatedEntities.length > 0
 
         Repeater {
-            model: root.relatedEntities
+            model: root.visible ? root.relatedEntities : []
 
             delegate: StyledRect {
-                height: 32
-                width: (parent.width - Theme.spacingS) / 2 - 1
+                height: 36
+                width: parent.width
                 radius: 6
                 color: Theme.surfaceContainerHigh
 
@@ -38,19 +71,12 @@ Column {
                     anchors.rightMargin: Theme.spacingS
                     spacing: Theme.spacingS
 
-                    DankIcon {
-                        name: Components.HassConstants.getIconForDomain(modelData.domain)
-                        size: 14
-                        color: Theme.primary
-                        anchors.verticalCenter: parent.verticalCenter
-                    }
-
                     StyledText {
-                        text: modelData.friendlyName
+                        text: root.shortEntityName(modelData)
                         font.pixelSize: 10
                         color: Theme.surfaceText
                         elide: Text.ElideRight
-                        width: parent.width - 60
+                        width: parent.width - stateText.width - (actionButton.visible ? actionButton.width + Theme.spacingS : 0) - Theme.spacingS * 2
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
@@ -60,14 +86,42 @@ Column {
                     }
 
                     StyledText {
-                        text: Components.HassConstants.formatStateValue(modelData.state, modelData.unitOfMeasurement)
+                        id: stateText
+                        text: {
+                            const translationVersion = HomeAssistantService.translationsVersion;
+                            return HomeAssistantService.formatEntityState(modelData.domain || "", modelData.state, modelData.unitOfMeasurement);
+                        }
                         font.pixelSize: 10
                         font.weight: Font.Bold
                         color: Theme.primary
                         anchors.verticalCenter: parent.verticalCenter
                     }
+
+                    EditActionButton {
+                        id: actionButton
+                        width: 26
+                        height: 26
+                        visible: root.isEditing
+                        iconName: root.isSelected(modelData.entityId) ? "close" : "add"
+                        iconSize: 13
+                        iconColor: root.isSelected(modelData.entityId) ? Theme.primaryText : Theme.surfaceText
+                        backgroundColor: root.isSelected(modelData.entityId) ? (Theme.error || "transparent") : (Theme.surfaceContainerHighest || "transparent")
+                        onClicked: {
+                            if (root.isSelected(modelData.entityId))
+                                root.removeEntity(modelData.entityId);
+                            else
+                                root.addEntity(modelData.entityId);
+                        }
+                    }
                 }
             }
         }
+    }
+
+    StyledText {
+        visible: root.isEditing && (!root.relatedEntities || root.relatedEntities.length === 0)
+        text: I18n.tr("No connected entities found for this device", "Empty state")
+        font.pixelSize: Theme.fontSizeSmall
+        color: Theme.surfaceVariantText
     }
 }

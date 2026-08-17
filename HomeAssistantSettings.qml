@@ -281,6 +281,13 @@ PluginSettings {
     }
 
     ToggleSetting {
+        settingKey: "editModeTwoColumns"
+        label: I18n.tr("Two-Column Edit Mode", "Home Assistant edit layout setting")
+        description: I18n.tr("Expand the plugin popout and show the entity browser beside the monitored list while editing.", "Home Assistant edit layout description")
+        defaultValue: true
+    }
+
+    ToggleSetting {
         settingKey: "showButtonsOnStatusBar"
         label: I18n.tr("Show Status Bar Buttons", "Home Assistant status bar buttons setting")
         description: I18n.tr("Display inline control buttons for pinned entities in the status bar when the entity supports quick actions.", "Home Assistant status bar buttons description")

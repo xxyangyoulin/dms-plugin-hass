@@ -1,6 +1,7 @@
 import "../"
 import "../../services"
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import qs.Common
 import qs.Services
@@ -11,6 +12,8 @@ Column {
 
     required property var entityData
     readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
+    property bool compactLabels: false
+    readonly property bool showSectionLabels: !compactLabels || sections.length > 1
     property var sections: []
 
     function refreshSections() {
@@ -42,6 +45,7 @@ Column {
             required property var modelData
 
             width: root.width
+            height: item ? Math.max(item.implicitHeight, item.height) : 0
             property var section: modelData
             onLoaded: {
                 if (item)
@@ -74,6 +78,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: I18n.tr("Value", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
@@ -107,6 +112,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: I18n.tr("Select", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
@@ -139,6 +145,7 @@ Column {
                     id: selectReadoutComponent
 
                     StyledRect {
+                        id: readout
                         property var sectionData: parent.sectionData
 
                         width: parent.width
@@ -163,10 +170,95 @@ Column {
 
                             DankIcon {
                                 id: dropdownIcon
-                                name: "expand_more"
+                                name: optionPopup.visible ? "expand_less" : "expand_more"
                                 size: 20
                                 color: Theme.surfaceVariantText
                                 anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (optionPopup.visible) {
+                                    optionPopup.close();
+                                } else {
+                                    optionPopup.open();
+                                    const pos = readout.mapToItem(Overlay.overlay, 0, 0);
+                                    const popupHeight = optionPopup.height;
+                                    const overlayHeight = Overlay.overlay.height;
+                                    optionPopup.x = pos.x;
+                                    optionPopup.y = pos.y + readout.height + 4 + popupHeight > overlayHeight ? pos.y - popupHeight - 4 : pos.y + readout.height + 4;
+                                }
+                            }
+                        }
+
+                        Popup {
+                            id: optionPopup
+
+                            parent: Overlay.overlay
+                            width: readout.width
+                            height: Math.min(320, readout.sectionData.options.length * 36 + Theme.spacingS * 2)
+                            padding: 0
+                            modal: true
+                            dim: false
+                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+                            background: Rectangle {
+                                color: "transparent"
+                            }
+
+                            contentItem: StyledRect {
+                                color: Theme.surfaceContainer
+                                border.color: Theme.primary
+                                border.width: 1
+                                radius: Theme.cornerRadius
+
+                                Column {
+                                    anchors.fill: parent
+                                    anchors.margins: Theme.spacingS
+                                    spacing: 2
+
+                                    Repeater {
+                                        model: readout.sectionData.options
+
+                                        delegate: StyledRect {
+                                            required property var modelData
+
+                                            width: parent.width
+                                            height: 32
+                                            radius: Theme.cornerRadius
+                                            color: modelData === readout.sectionData.value ? Theme.primary : optionMouse.containsMouse ? Theme.primaryHoverLight : "transparent"
+
+                                            StyledText {
+                                                anchors.left: parent.left
+                                                anchors.right: parent.right
+                                                anchors.leftMargin: Theme.spacingS
+                                                anchors.rightMargin: Theme.spacingS
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: modelData
+                                                font.pixelSize: Theme.fontSizeMedium
+                                                color: modelData === readout.sectionData.value ? root.selectedForegroundColor : Theme.surfaceText
+                                                elide: Text.ElideRight
+                                            }
+
+                                            MouseArea {
+                                                id: optionMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    HomeAssistantService.setOptimisticState(root.entityData.entityId, "state", modelData);
+                                                    HomeAssistantService.callService(root.entityData.domain, "select_option", root.entityData.entityId, {
+                                                        option: modelData
+                                                    });
+                                                    optionPopup.close();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -232,6 +324,7 @@ Column {
             spacing: Theme.spacingS
 
             StyledText {
+                visible: root.showSectionLabels
                 text: I18n.tr("Options", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText

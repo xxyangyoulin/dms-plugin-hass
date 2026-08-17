@@ -12,6 +12,7 @@ Column {
     spacing: Theme.spacingM
 
     required property var entityData
+    readonly property int translationVersion: HomeAssistantService.translationsVersion
 
     function getVal(attr, def) {
         return EntityHelper.getEffectiveValue(entityData, attr, def);
@@ -222,7 +223,7 @@ Column {
         }
 
         StyledText {
-            text: I18n.tr("Source", "Control label")
+            text: HomeAssistantService.translateAttributeName("media_player", "source", I18n.tr("Source", "Control label"))
             font.pixelSize: Theme.fontSizeSmall
             color: Theme.surfaceVariantText
         }
