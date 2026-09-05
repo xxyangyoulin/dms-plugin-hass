@@ -94,12 +94,20 @@ StyledRect {
         return Components.EntityControlResolver.getOperationCount(data) > 0;
     }
 
+    function _supportsCompactToggle(data) {
+        return data && (data.domain === "switch" || data.domain === "light");
+    }
+
+    function _hasExtraControlFor(data) {
+        return _hasControlsFor(data) || _supportsCompactToggle(data);
+    }
+
     function _extraEntitiesWithControls() {
-        return (extraEntities || []).filter(e => _hasControlsFor(e));
+        return (extraEntities || []).filter(e => _hasExtraControlFor(e));
     }
 
     function _availableRelatedEntities() {
-        return (relatedEntities || []).filter(e => _hasControlsFor(e) && !extraEntityIds.includes(e.entityId));
+        return (relatedEntities || []).filter(e => _hasExtraControlFor(e) && !extraEntityIds.includes(e.entityId));
     }
 
     function _shortEntityName(entity) {
@@ -110,7 +118,8 @@ StyledRect {
         const simplifiedBase = baseName
             .replace(/(?:\s*(?:空调|灯|开关|风扇|传感器)|\s+(?:ac|air conditioner|air conditioning|thermostat|climate|light|lamp|switch|fan|sensor))$/i, "")
             .trim();
-        const bases = simplifiedBase && simplifiedBase !== baseName ? [baseName, simplifiedBase] : [baseName];
+        const deviceName = entity.deviceName || "";
+        const bases = [baseName, simplifiedBase, deviceName].filter((value, index, values) => value && values.indexOf(value) === index);
         for (const base of bases) {
             if (!base || !name.toLowerCase().startsWith(base.toLowerCase()))
                 continue;
@@ -391,10 +400,44 @@ StyledRect {
                 model: entityCard._extraEntitiesWithControls()
 
                 delegate: Column {
+                    id: extraEntityControl
+
                     required property var modelData
+                    property string currentState: ""
+                    property var actionState: ({ status: "idle" })
+
+                    function refreshState() {
+                        const latest = HomeAssistantService.getEntityData(modelData.entityId) || modelData;
+                        currentState = EntityHelper.getEffectiveState(latest);
+                        actionState = HomeAssistantService.getEntityActionState(modelData.entityId);
+                    }
+
+                    function toggleEntity() {
+                        const nextState = currentState === "on" ? "off" : "on";
+                        HomeAssistantService.setOptimisticState(modelData.entityId, "state", nextState);
+                        HomeAssistantService.toggleEntity(modelData.entityId, modelData.domain, currentState);
+                        refreshState();
+                    }
 
                     width: parent.width
                     spacing: Theme.spacingS
+
+                    Component.onCompleted: refreshState()
+                    onModelDataChanged: refreshState()
+
+                    Connections {
+                        target: HomeAssistantService
+
+                        function onEntityDataChanged(entityId) {
+                            if (entityId === extraEntityControl.modelData.entityId)
+                                extraEntityControl.refreshState();
+                        }
+
+                        function onEntityActionStateChanged(entityId) {
+                            if (entityId === extraEntityControl.modelData.entityId)
+                                extraEntityControl.refreshState();
+                        }
+                    }
 
                     Row {
                         width: parent.width
@@ -405,8 +448,37 @@ StyledRect {
                             font.pixelSize: Theme.fontSizeSmall
                             color: Theme.surfaceVariantText
                             elide: Text.ElideRight
-                            width: parent.width - (removeExtraButton.visible ? removeExtraButton.width + Theme.spacingS : 0)
+                            width: parent.width
+                                - (extraStateText.visible ? extraStateText.width + Theme.spacingS : 0)
+                                - (extraToggleButton.visible ? extraToggleButton.width + Theme.spacingS : 0)
+                                - (removeExtraButton.visible ? removeExtraButton.width + Theme.spacingS : 0)
                             anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        StyledText {
+                            id: extraStateText
+                            visible: entityCard._supportsCompactToggle(extraEntityControl.modelData)
+                            text: HomeAssistantService.formatEntityState(extraEntityControl.modelData.domain, extraEntityControl.currentState, "")
+                            font.pixelSize: Theme.fontSizeSmall
+                            font.weight: Font.Bold
+                            color: extraEntityControl.currentState === "unavailable" || extraEntityControl.currentState === "unknown"
+                                ? Theme.warning
+                                : (extraEntityControl.currentState === "on" ? Theme.primary : Theme.surfaceVariantText)
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+
+                        EntityQuickActionButton {
+                            id: extraToggleButton
+                            visibleWhenActive: entityCard._supportsCompactToggle(extraEntityControl.modelData)
+                            actionPending: extraEntityControl.actionState.status === "pending"
+                            actionError: extraEntityControl.actionState.status === "error"
+                            activeState: extraEntityControl.currentState === "on"
+                            activeColor: Theme.primary
+                            inactiveColor: Theme.surfaceVariant
+                            activeIconColor: Theme.primaryText
+                            inactiveIconColor: Theme.surfaceText
+                            iconName: actionError ? "error" : "power_settings_new"
+                            onClicked: extraEntityControl.toggleEntity()
                         }
 
                         EditActionButton {
@@ -425,6 +497,7 @@ StyledRect {
                     EntityControlsView {
                         width: parent.width
                         height: implicitHeight
+                        visible: entityCard._hasControlsFor(modelData)
                         entityData: modelData
                         compactLabels: true
                     }

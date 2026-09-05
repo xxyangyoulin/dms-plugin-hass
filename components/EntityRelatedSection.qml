@@ -29,7 +29,8 @@ Column {
         const simplifiedBase = baseName
             .replace(/(?:\s*(?:空调|灯|开关|风扇|传感器)|\s+(?:ac|air conditioner|air conditioning|thermostat|climate|light|lamp|switch|fan|sensor))$/i, "")
             .trim();
-        const bases = simplifiedBase && simplifiedBase !== baseName ? [baseName, simplifiedBase] : [baseName];
+        const deviceName = entity.deviceName || "";
+        const bases = [baseName, simplifiedBase, deviceName].filter((value, index, values) => value && values.indexOf(value) === index);
         for (const base of bases) {
             if (!base || !name.toLowerCase().startsWith(base.toLowerCase()))
                 continue;

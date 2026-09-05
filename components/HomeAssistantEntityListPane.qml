@@ -80,7 +80,22 @@ Column {
         return (ids || [])
             .filter(id => id !== entityId)
             .map(id => root.entityById[id])
-            .filter(e => e !== undefined);
+            .filter(e => e !== undefined)
+            .sort((a, b) => {
+                const rank = entity => {
+                    if (!entity.entityCategory && (entity.domain === "switch" || entity.domain === "light"))
+                        return 0;
+                    if (!entity.entityCategory)
+                        return 1;
+                    if (entity.entityCategory === "config")
+                        return 2;
+                    return 3;
+                };
+                const rankDifference = rank(a) - rank(b);
+                if (rankDifference !== 0)
+                    return rankDifference;
+                return (a.originalName || a.friendlyName).localeCompare(b.originalName || b.friendlyName);
+            });
     }
 
     width: parent ? parent.width : implicitWidth

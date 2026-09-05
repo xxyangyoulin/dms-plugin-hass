@@ -178,6 +178,7 @@ Singleton {
     // Devices cache for entity grouping by device
     property var devicesCache: ({})
     property var entityToDeviceCache: ({})
+    property var entityRegistryCache: ({})
     property bool devicesLoaded: false
     property bool devicesLoading: false
     property string lastMonitoredIdsStr: "" // Tracks structure to avoid jitter
@@ -1196,8 +1197,15 @@ Singleton {
                     });
 
                     const newEntityToDeviceCache = {};
+                    const newEntityRegistryCache = {};
 
                     entities.forEach(e => {
+                        const device = e.device_id ? newDevicesCache[e.device_id] : null;
+                        newEntityRegistryCache[e.entity_id] = {
+                            entityCategory: e.entity_category || "",
+                            originalName: e.original_name || "",
+                            deviceName: device ? device.name : ""
+                        };
                         if (e.device_id && newDevicesCache[e.device_id]) {
                             newDevicesCache[e.device_id].entityIds.push(e.entity_id);
                             newEntityToDeviceCache[e.entity_id] = e.device_id;
@@ -1206,6 +1214,16 @@ Singleton {
 
                     devicesCache = newDevicesCache;
                     entityToDeviceCache = newEntityToDeviceCache;
+                    entityRegistryCache = newEntityRegistryCache;
+
+                    for (let i = 0; i < cachedAllEntities.length; i++) {
+                        const cachedEntity = cachedAllEntities[i];
+                        const registryEntry = newEntityRegistryCache[cachedEntity.entityId] || {};
+                        cachedAllEntities[i] = Object.assign({}, cachedEntity, registryEntry);
+                    }
+                    rebuildCachedEntityIndexes();
+                    PluginService.setGlobalVar(pluginId, "allEntities", Array.from(cachedAllEntities));
+                    reprocessMonitoredEntities();
                     devicesLoaded = true;
                     devicesLoading = false;
                     
@@ -1310,6 +1328,7 @@ Singleton {
         const attrs = entity.attributes || {};
         const entityId = entity.entity_id || "";
         const overrideName = entityOverrides[entityId];
+        const registryEntry = entityRegistryCache[entityId] || {};
 
         return {
             entityId: entityId,
@@ -1320,7 +1339,10 @@ Singleton {
             attributes: attrs,
             lastChanged: entity.last_changed || "",
             lastUpdated: entity.last_updated || "",
-            domain: entityId.split('.')[0] || ""
+            domain: entityId.split('.')[0] || "",
+            entityCategory: registryEntry.entityCategory || "",
+            originalName: registryEntry.originalName || "",
+            deviceName: registryEntry.deviceName || ""
         };
     }
 
