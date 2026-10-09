@@ -74,7 +74,7 @@ Column {
 
                     StyledText {
                         text: root.shortEntityName(modelData)
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeSmall
                         color: Theme.surfaceText
                         elide: Text.ElideRight
                         width: parent.width - stateText.width - (actionButton.visible ? actionButton.width + Theme.spacingS : 0) - Theme.spacingS * 2
@@ -92,7 +92,7 @@ Column {
                             const translationVersion = HomeAssistantService.translationsVersion;
                             return HomeAssistantService.formatEntityState(modelData.domain || "", modelData.state, modelData.unitOfMeasurement);
                         }
-                        font.pixelSize: 10
+                        font.pixelSize: Theme.fontSizeSmall
                         font.weight: Font.Bold
                         color: Theme.primary
                         anchors.verticalCenter: parent.verticalCenter

@@ -12,7 +12,7 @@ Item {
     property string icon: ""
     property int buttonHeight: 30
     property int minimumButtonWidth: 60
-    readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
+    readonly property color selectedForegroundColor: Theme.primaryText
     signal selected(var value)
 
     function labelFor(modelData, index) {

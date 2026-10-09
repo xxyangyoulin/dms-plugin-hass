@@ -78,7 +78,7 @@ Column {
             StyledText {
                 Layout.fillWidth: true
                 text: root.getVal("app_name", "")
-                font.pixelSize: 10
+                font.pixelSize: Theme.fontSizeSmall
                 color: Theme.primary
                 elide: Text.ElideRight
                 visible: text !== ""

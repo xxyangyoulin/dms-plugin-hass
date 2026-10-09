@@ -32,7 +32,7 @@ Rectangle {
     Rectangle {
         anchors.fill: parent
         radius: parent.radius
-        color: "#000000"
+        color: Theme.surfaceText
         opacity: buttonHover.hovered ? 0.1 : 0
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
     }

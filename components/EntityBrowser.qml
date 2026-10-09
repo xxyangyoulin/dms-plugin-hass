@@ -410,7 +410,7 @@ Rectangle {
                                         DankIcon {
                                             name: entityRowCard.isShortcut ? "star" : "star_border"
                                             size: 18
-                                            color: entityRowCard.isShortcut ? "#FFC107" : Theme.surfaceVariantText // Amber for star
+                                            color: entityRowCard.isShortcut ? Theme.primary : Theme.surfaceVariantText
                                             anchors.centerIn: parent
                                         }
                                         

@@ -109,12 +109,12 @@ Canvas {
         }
 
         // Draw labels and interactive tooltip
-        ctx.font = "bold 10px sans-serif";
+        ctx.font = "bold " + Theme.fontSizeSmall + "px sans-serif";
 
         function drawPill(x, y, text, isMain) {
             var textMetrics = ctx.measureText(text);
             var textWidth = textMetrics.width;
-            var textHeight = 10;
+            var textHeight = Theme.fontSizeSmall;
             var px = 6, py = 3;
             var pw = textWidth + px * 2, ph = textHeight + py * 2;
             
@@ -125,7 +125,7 @@ Canvas {
             // Dot
             ctx.beginPath();
             ctx.arc(x, y, isMain ? 4 : 3, 0, 2 * Math.PI);
-            ctx.fillStyle = "#FFFFFF";
+            ctx.fillStyle = Theme.surfaceText;
             ctx.fill();
             ctx.strokeStyle = lineColor;
             ctx.lineWidth = 2;
@@ -157,7 +157,7 @@ Canvas {
             ctx.shadowBlur = 0;
 
             // Text
-            ctx.fillStyle = isMain ? "#FFFFFF" : Theme.surfaceText;
+            ctx.fillStyle = isMain ? Theme.primaryText : Theme.surfaceText;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(text, pillX + pw / 2, pillY + ph / 2);

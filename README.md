@@ -29,6 +29,7 @@ Monitor and control your Home Assistant entities directly from your status bar.
 ## Permissions
 
 - `settings_read` / `settings_write`
+- `network`: Connect to the configured Home Assistant server and load entity data and media artwork.
 
 ## Feedback & Contributions
 

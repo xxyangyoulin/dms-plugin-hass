@@ -298,7 +298,7 @@ Item {
             color: isActive ? Theme.primary : Theme.surfaceContainerHigh
 
             Rectangle {
-                width: 10; height: 10; radius: 5; color: "#FFFFFF"
+                width: Theme.spacingM; height: width; radius: width / 2; color: Theme.primaryText
                 x: parent.isActive ? parent.width - width - 2 : 2
                 anchors.verticalCenter: parent.verticalCenter
                 Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }

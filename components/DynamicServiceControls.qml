@@ -13,7 +13,7 @@ Column {
     
     width: parent ? parent.width : 200
     spacing: Theme.spacingM
-    readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
+    readonly property color selectedForegroundColor: Theme.primaryText
     
     // Check if services are loaded
     readonly property bool servicesReady: HomeAssistantService.servicesLoaded

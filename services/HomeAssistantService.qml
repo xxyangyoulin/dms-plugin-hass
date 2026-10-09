@@ -21,10 +21,10 @@ Singleton {
     property string _tokenFromFile: ""
     property string _tokenFromSettings: ""
     property string hassToken: hassTokenPath !== "" ? _tokenFromFile : _tokenFromSettings
-    readonly property string defaultTokenPath: {
-        const configHome = Quickshell.env("XDG_CONFIG_HOME") || (Quickshell.env("HOME") + "/.config");
-        return configHome + "/DankMaterialShell/secrets/home-assistant.token";
-    }
+    property int connectionGeneration: 0
+    property bool connectionResetQueued: false
+    onHassUrlChanged: scheduleConnectionReset()
+    onHassTokenChanged: scheduleConnectionReset()
     property string entityIds: ""
     property int refreshInterval: 3
     property bool showAttributes: false
@@ -200,6 +200,63 @@ Singleton {
     property bool suppressReconnect: false
     property var entityActionStates: ({})
 
+    function scheduleConnectionReset() {
+        if (connectionResetQueued)
+            return;
+        connectionResetQueued = true;
+        connectionGeneration++;
+        Qt.callLater(() => {
+            pingTimer.stop();
+            reconnectTimer.stop();
+            statesRetryTimer.stop();
+            clearCallbacks("Connection settings changed");
+            wsAuthenticated = false;
+            suppressReconnect = false;
+            statesRequestInFlight = false;
+            statesRefreshPending = false;
+            statesPendingRefreshCompletion = false;
+            statesFailureBackoffMs = 0;
+            currentReconnectInterval = Components.HassConstants.initialReconnectInterval;
+            servicesCache = {};
+            servicesLoaded = false;
+            translationsCache = {};
+            translationDomainsLoaded = {};
+            translationDomainsLoading = {};
+            translationsVersion++;
+            devicesCache = {};
+            entityToDeviceCache = {};
+            entityRegistryCache = {};
+            devicesLoaded = false;
+            devicesLoading = false;
+            historyCache = {};
+            historyRequests = {};
+            cachedAllEntities = [];
+            rebuildCachedEntityIndexes();
+            optimisticStates = {};
+            optimisticTimestamps = {};
+            entityActionStates = {};
+            haAvailable = false;
+            latency = -1;
+            PluginService.setGlobalVar(pluginId, "latency", -1);
+            PluginService.setGlobalVar(pluginId, "allEntities", []);
+            allEntitiesStructureChanged();
+            updateEntities([]);
+            connectionResetQueued = false;
+            initialize();
+        });
+    }
+
+    function rejectAuthentication(message) {
+        suppressReconnect = true;
+        wsAuthenticated = false;
+        haAvailable = false;
+        pingTimer.stop();
+        reconnectTimer.stop();
+        statesRetryTimer.stop();
+        setConnectionState("auth_error", message || I18n.tr("Authentication failed", "Home Assistant authentication error"));
+        PluginService.setGlobalVar(pluginId, "haAvailable", false);
+    }
+
     function clearCallbacks(reason) {
         for (var id in wsCallbacks) {
             try {
@@ -351,7 +408,7 @@ Singleton {
         Binding {
             target: wsLoader.item
             property: "active"
-            value: !!root.hassUrl && !!root.hassToken
+            value: root.isConfigured && !root.suppressReconnect && !root.connectionResetQueued
             when: wsLoader.status === Loader.Ready
         }
         
@@ -360,6 +417,8 @@ Singleton {
             ignoreUnknownSignals: true
             
             function onSocketStatusChanged(status) {
+                if (root.connectionResetQueued)
+                    return;
                 if (status === root.wsError) {
                     console.error("HomeAssistantMonitor: WebSocket Error:", wsLoader.item.errorString);
                     wsAuthenticated = false;
@@ -384,7 +443,6 @@ Singleton {
                     clearCallbacks("WebSocket Closed");
                     if (suppressReconnect) {
                         setConnectionState("auth_error", connectionMessage || I18n.tr("Authentication failed", "Home Assistant authentication error"));
-                        suppressReconnect = false;
                     } else {
                         setConnectionState("offline", I18n.tr("Disconnected from Home Assistant", "Home Assistant connection error"));
                         if (!wsLoader.item.reconnectPending)
@@ -400,6 +458,8 @@ Singleton {
             }
 
             function onTextMessageReceived(message) {
+                if (root.connectionResetQueued || root.suppressReconnect)
+                    return;
                 try {
                     const data = JSON.parse(message);
                     handleWsMessage(data);
@@ -415,7 +475,7 @@ Singleton {
         interval: root.currentReconnectInterval
         repeat: false
         onTriggered: {
-            if (socket && socket.status !== root.wsOpen) {
+            if (root.isConfigured && !root.suppressReconnect && socket && socket.status !== root.wsOpen) {
                 // Use the reconnect() method which handles the reconnection properly
                 socket.reconnect();
 
@@ -508,7 +568,7 @@ Singleton {
         refreshInterval = load("refreshInterval", 3);
         showAttributes = load("showAttributes", false);
 
-        if (shouldRefresh !== false) {
+        if (shouldRefresh !== false && !connectionResetQueued) {
             refresh();
         }
     }
@@ -523,31 +583,6 @@ Singleton {
             settingsReloadQueued = false;
             loadSettings(true);
         });
-    }
-
-    function saveCredentials(url, token) {
-        const cleanUrl = normalizeBaseUrl(url);
-        const cleanToken = token.toString().trim();
-        const tokenPath = hassTokenPath || defaultTokenPath;
-
-        if (!cleanToken) {
-            console.warn("HomeAssistantMonitor: Refusing to save an empty token");
-            return;
-        }
-
-        PluginService.savePluginData(pluginId, "hassUrl", cleanUrl);
-        PluginService.savePluginData(pluginId, "hassTokenPath", tokenPath);
-
-        const writeTokenScript = "umask 077; mkdir -p \"$(dirname \"$1\")\" && printf %s \"$2\" > \"$1\" && chmod 600 \"$1\"";
-        Proc.runCommand(`${pluginId}.saveToken.${Date.now()}`, ["sh", "-c", writeTokenScript, "sh", tokenPath, cleanToken], (stdout, exitCode) => {
-            if (exitCode !== 0) {
-                console.error("HomeAssistantMonitor: Failed to store the token in", tokenPath);
-                return;
-            }
-
-            PluginService.savePluginData(pluginId, "hassToken", "");
-            scheduleSettingsReload();
-        }, 0, 5000);
     }
 
     // Shortcuts Management
@@ -656,7 +691,8 @@ Singleton {
         loadSettings(false);
         loadShortcuts();
         loadEntityOverrides();
-        initialize();
+        if (!connectionResetQueued)
+            initialize();
     }
 
     Connections {
@@ -679,7 +715,7 @@ Singleton {
     property var refreshTimer: Timer {
         interval: root.refreshInterval * 1000
         // Only run polling if WebSocket is NOT connected and we are configured
-        running: (!socket || socket.status !== root.wsOpen) && root.isConfigured
+        running: (!socket || socket.status !== root.wsOpen) && root.isConfigured && !root.suppressReconnect && !root.connectionResetQueued && !statesRetryTimer.running && !root.statesRequestInFlight
         repeat: true
         onTriggered: fetchEntities()
     }
@@ -712,6 +748,8 @@ Singleton {
     }
 
     function refresh() {
+        if (suppressReconnect || connectionResetQueued)
+            return;
         if (canUseWebSocketApi()) {
             // 1. Fetch States
             sendWsMessage({ type: "get_states" }, (response) => {
@@ -756,6 +794,7 @@ Singleton {
                 access_token: root.hassToken
             }));
         } else if (data.type === "auth_ok") {
+            const generation = connectionGeneration;
             wsAuthenticated = true;
             haAvailable = true;
             PluginService.setGlobalVar(pluginId, "haAvailable", true);  // Notify UI immediately
@@ -769,6 +808,8 @@ Singleton {
             
             // Trigger metadata and state fetch after auth
             Qt.callLater(() => {
+                if (generation !== connectionGeneration || suppressReconnect)
+                    return;
                 fetchServices();
                 fetchTranslations();
                 refresh();
@@ -785,14 +826,7 @@ Singleton {
                 });
             });
         } else if (data.type === "auth_invalid") {
-            console.error("HomeAssistantMonitor: WebSocket Auth Failed:", data.message);
-            wsAuthenticated = false;
-            haAvailable = false;
-            PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
-            setConnectionState("auth_error", data.message || I18n.tr("Authentication failed", "Home Assistant authentication error"));
-            suppressReconnect = true;
-            pingTimer.stop();
-            socket.active = false;
+            rejectAuthentication(data.message);
         } else if (data.type === "event") {
             if (data.event.event_type === "state_changed") {
                 const eventData = data.event.data;
@@ -1244,6 +1278,7 @@ Singleton {
     }
 
     function scheduleRequestRetry(method, endpoint, data, callback, retryCount) {
+        const generation = connectionGeneration;
         const baseDelay = Math.min(10000, 500 * Math.pow(2, retryCount));
         const jitter = Math.floor(Math.random() * 250);
         const retryTimer = requestRetryTimerComponent.createObject(root, {
@@ -1252,12 +1287,16 @@ Singleton {
 
         retryTimer.triggered.connect(() => {
             retryTimer.destroy();
-            makeRequest(method, endpoint, data, callback, retryCount + 1);
+            if (generation === connectionGeneration && !suppressReconnect)
+                makeRequest(method, endpoint, data, callback, retryCount + 1);
         });
         retryTimer.start();
     }
 
     function makeRequest(method, endpoint, data, callback, retryCount = 0) {
+        if (connectionResetQueued || suppressReconnect)
+            return;
+        const generation = connectionGeneration;
         if (!hassUrl || !hassToken) {
             console.warn("HomeAssistantMonitor: Missing URL or Token");
             if (callback) callback(null, -1);
@@ -1270,10 +1309,16 @@ Singleton {
         var settled = false;
 
         function fail(status, statusText) {
-            if (settled) {
+            if (settled || generation !== connectionGeneration || suppressReconnect) {
                 return;
             }
             settled = true;
+
+            if (status === 401) {
+                rejectAuthentication();
+                if (callback) callback(null, status);
+                return;
+            }
 
             const retryable = method === "GET" && (status === 0 || status === 408 || status >= 500);
             if (retryCount < maxRetries && retryable) {
@@ -1289,6 +1334,8 @@ Singleton {
         }
         
         xhr.onreadystatechange = function() {
+            if (generation !== connectionGeneration || suppressReconnect)
+                return;
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     if (settled) {
@@ -1422,6 +1469,8 @@ Singleton {
     }
 
     function fetchEntities(emitRefreshCompletion) {
+        if (suppressReconnect || connectionResetQueued)
+            return;
         const parsedEntityIds = parseEntityIds();
         const shouldEmitRefreshCompletion = emitRefreshCompletion === true;
 
@@ -1450,6 +1499,10 @@ Singleton {
         statesRequestInFlight = true;
         makeRequest("GET", "/api/states", null, (stdout, exitCode) => {
             statesRequestInFlight = false;
+            if (suppressReconnect) {
+                if (shouldEmitRefreshCompletion) refreshCompleted(false);
+                return;
+            }
             const runPendingRefresh = statesRefreshPending;
             const pendingRefreshCompletion = statesPendingRefreshCompletion;
             statesRefreshPending = false;
@@ -2217,21 +2270,20 @@ Singleton {
 
     function clearOldHistoryCache() {
         const now = Date.now();
-        let cleared = 0;
+        const remaining = {};
 
         for (const entityId in historyCache) {
             const cache = historyCache[entityId];
-            if (cache && (now - cache.timestamp) > historyCacheDuration) {
-                delete historyCache[entityId];
-                cleared++;
-            }
+            if (cache && (now - cache.timestamp) <= historyCacheDuration)
+                remaining[entityId] = cache;
         }
+        historyCache = remaining;
     }
 
     // 定期清理过期缓存
     Timer {
         interval: Components.HassConstants.historyCleanupInterval
-        running: true
+        running: Object.keys(root.historyCache).length > 0
         repeat: true
         onTriggered: clearOldHistoryCache()
     }

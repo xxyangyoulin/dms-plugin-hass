@@ -10,7 +10,7 @@ Column {
     id: root
 
     required property var entityData
-    readonly property color selectedForegroundColor: Theme.primaryText || "#FFFFFF"
+    readonly property color selectedForegroundColor: Theme.primaryText
     property bool compactLabels: false
     readonly property bool showSectionLabels: !compactLabels || sections.length > 1
     property var sections: []
