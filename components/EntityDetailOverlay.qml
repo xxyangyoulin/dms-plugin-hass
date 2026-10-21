@@ -213,7 +213,10 @@ FocusScope {
             contentHeight: detailLoader.height
             boundsBehavior: Flickable.StopAtBounds
             flickableDirection: Flickable.VerticalFlick
-            ScrollBar.vertical: ScrollBar {}
+            ScrollBar.vertical: ScrollBar {
+                implicitWidth: 4
+                padding: 0
+            }
 
             Loader {
                 id: detailLoader
