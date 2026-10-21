@@ -9,8 +9,23 @@ Canvas {
     property real lineWidth: 2
     property bool fillEnabled: true
     property real revealProgress: 0
-    readonly property int hoveredIndex: revealProgress === 1 && mouseArea.containsMouse && historyData.length >= 2 && width > 0
-        ? Math.max(0, Math.min(historyData.length - 1, Math.round(mouseArea.mouseX / width * (historyData.length - 1)))) : -1
+    readonly property real startTime: historyData.length ? historyData[0].time.getTime() : 0
+    readonly property real endTime: historyData.length ? historyData[historyData.length - 1].time.getTime() : 0
+    readonly property int hoveredIndex: {
+        if (revealProgress !== 1 || !mouseArea.containsMouse || !historyData.length || width <= 0)
+            return -1;
+        const time = startTime + Math.max(0, Math.min(1, mouseArea.mouseX / width)) * (endTime - startTime);
+        let nearest = 0;
+        for (let i = 1; i < historyData.length; i++) {
+            if (Math.abs(historyData[i].time.getTime() - time) < Math.abs(historyData[nearest].time.getTime() - time))
+                nearest = i;
+        }
+        return nearest;
+    }
+
+    function pointX(index) {
+        return endTime > startTime ? (historyData[index].time.getTime() - startTime) / (endTime - startTime) * width : width / 2;
+    }
     readonly property string hoveredTime: hoveredIndex >= 0
         ? Qt.formatDateTime(historyData[hoveredIndex].time, "MM/dd HH:mm") : ""
 
@@ -43,7 +58,7 @@ Canvas {
         var ctx = getContext("2d");
         ctx.reset();
         
-        if (!historyData || historyData.length < 2) return;
+        if (!historyData || historyData.length === 0) return;
 
         var min = Infinity;
         var max = -Infinity;
@@ -60,19 +75,18 @@ Canvas {
         if (range === 0) range = 1;
 
         var padding = 15; // Increased padding for labels
-        var drawWidth = width;
         var drawHeight = height - padding * 2;
 
         var points = [];
         for (var i = 0; i < historyData.length; i++) {
-            var x = (i / (historyData.length - 1)) * drawWidth;
-            var y = height - padding - ((historyData[i].value - min) / range) * drawHeight;
+            var x = pointX(i);
+            var y = max === min ? height / 2 : height - padding - ((historyData[i].value - min) / range) * drawHeight;
             points.push({x: x, y: y, value: historyData[i].value});
         }
 
         // Apply reveal progress to visible points
         var visibleCount = Math.ceil(points.length * revealProgress);
-        if (visibleCount < 2) return;
+        if (visibleCount < 1) return;
         var visiblePoints = points.slice(0, visibleCount);
 
         // Draw Line

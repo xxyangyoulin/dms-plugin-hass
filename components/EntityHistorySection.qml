@@ -8,10 +8,10 @@ Column {
 
     required property var historyData
     required property string unit
+    property bool loading: false
 
     width: parent ? parent.width : implicitWidth
     spacing: Theme.spacingS
-    visible: historyData.length > 0
 
     RowLayout {
         width: parent.width
@@ -31,11 +31,41 @@ Column {
         }
     }
 
-    Sparkline {
-        id: sparkline
+    Item {
         width: parent.width
-        height: 50
-        historyData: root.historyData
-        unit: root.unit
+        height: 112
+
+        Sparkline {
+            id: sparkline
+            anchors.fill: parent
+            visible: !root.loading && root.historyData.length > 0
+            historyData: root.historyData
+            unit: root.unit
+        }
+
+        StyledText {
+            anchors.centerIn: parent
+            visible: root.loading || root.historyData.length === 0
+            text: root.loading ? I18n.tr("Loading history…") : I18n.tr("No history available")
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.surfaceVariantText
+        }
+    }
+
+    RowLayout {
+        width: parent.width
+        opacity: !root.loading && root.historyData.length > 0 ? 1 : 0
+
+        StyledText {
+            text: Qt.formatDateTime(new Date(sparkline.startTime), "MM/dd HH:mm")
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.surfaceVariantText
+            Layout.fillWidth: true
+        }
+        StyledText {
+            text: Qt.formatDateTime(new Date(sparkline.endTime), "MM/dd HH:mm")
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.surfaceVariantText
+        }
     }
 }

@@ -49,7 +49,6 @@ Column {
             required property var modelData
 
             width: root.width
-            height: item ? Math.max(item.implicitHeight, item.height) : 0
             property var section: modelData
             onLoaded: {
                 if (item)

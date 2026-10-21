@@ -17,7 +17,6 @@ Column {
     property bool keyboardNavigationActive: false
     property string selectedEntityId: ""
     property var pinnedEntityIds: []
-    property var expandedEntities: ({})
     property var showEntityDetails: ({})
     property bool showAttributes: true
     property var customIcons: ({})
@@ -156,11 +155,9 @@ Column {
             readonly property var rowEntityData: !isShortcutRow && entityIndex >= 0 && entityIndex < (root.entities || []).length
                 ? root.entities[entityIndex]
                 : null
-            readonly property bool rowExpanded: rowEntityData ? (root.expandedEntities[rowEntityData.entityId] || false) : false
 
             width: entityList.width
             height: isShortcutRow ? shortcutsRow.contentHeight : entityCardDelegate.height
-            z: rowExpanded ? 10 : 0
 
             ShortcutsGrid {
                 id: shortcutsRow
@@ -174,7 +171,6 @@ Column {
                 visible: !parent.isShortcutRow && !!parent.rowEntityData
                 width: parent.width
                 entityData: parent.rowEntityData
-                isExpanded: parent.rowExpanded
                 isCurrentItem: rowEntityData ? (root.keyboardNavigationActive && root.selectedEntityId === rowEntityData.entityId) : false
                 isPinned: rowEntityData ? root.pinnedEntityIds.includes(rowEntityData.entityId) : false
                 detailsExpanded: rowEntityData ? (root.showEntityDetails[rowEntityData.entityId] || false) : false

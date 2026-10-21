@@ -9,7 +9,7 @@ import "./components"
 PluginComponent {
     id: root
 
-    property var expandedEntities: ({})
+    property string detailEntityId: ""
     property var showEntityDetails: ({})
     property bool showAttributes: pluginData.showAttributes !== undefined ? pluginData.showAttributes : true
     property var pinnedEntities: []
@@ -222,9 +222,7 @@ PluginComponent {
     }
 
     function toggleEntity(entityId) {
-        var expanded = Object.assign({}, root.expandedEntities);
-        expanded[entityId] = !expanded[entityId];
-        root.expandedEntities = expanded;
+        root.detailEntityId = root.detailEntityId === entityId ? "" : entityId;
     }
 
     function toggleEntityDetails(entityId) {
@@ -234,7 +232,7 @@ PluginComponent {
     }
 
     function collapseAllEntities() {
-        root.expandedEntities = ({});
+        root.detailEntityId = "";
         root.showEntityDetails = ({});
     }
 
@@ -662,6 +660,18 @@ PluginComponent {
             }
 
             Keys.onPressed: event => {
+                if (root.iconPickerEntityId) {
+                    if (event.key === Qt.Key_Escape)
+                        root.closeIconPicker();
+                    event.accepted = true;
+                    return;
+                }
+                if (detailOverlay.visible) {
+                    if (event.key === Qt.Key_Escape)
+                        root.detailEntityId = "";
+                    event.accepted = true;
+                    return;
+                }
                 if (event.key === Qt.Key_Down || (event.key === Qt.Key_J && event.modifiers & Qt.ControlModifier) ||
                     (event.key === Qt.Key_N && event.modifiers & Qt.ControlModifier)) {
                     root.selectNext();
@@ -682,14 +692,13 @@ PluginComponent {
                 } else if (event.key === Qt.Key_R && event.modifiers & Qt.ControlModifier) {
                     root.refreshEntities();
                     event.accepted = true;
-                } else if (event.key === Qt.Key_Escape && root.iconPickerEntityId) {
-                    root.closeIconPicker();
-                    event.accepted = true;
                 }
             }
 
             Column {
                 id: popoutColumn
+                opacity: 1 - detailOverlay.opacity
+                enabled: !detailOverlay.visible
                 width: parent.width - Theme.spacingM * 2
                 x: Theme.spacingM
                 y: Theme.spacingM
@@ -785,7 +794,6 @@ PluginComponent {
                         keyboardNavigationActive: root.keyboardNavigationActive
                         selectedEntityId: root.selectedEntityId
                         pinnedEntityIds: root.pinnedEntities
-                        expandedEntities: root.expandedEntities
                         showEntityDetails: root.showEntityDetails
                         showAttributes: root.showAttributes
                         customIcons: root.customIcons
@@ -808,11 +816,74 @@ PluginComponent {
                 }
             }
 
+            EntityDetailOverlay {
+                id: detailOverlay
+                anchors.fill: parent
+                outerPadding: PopoutMetrics.contentPadding
+                z: 50
+                opened: root.detailEntityId !== ""
+                enabled: !root.iconPickerEntityId
+                property string shownEntityId: ""
+                readonly property var entity: (globalEntities.value || []).find(e => e.entityId === (root.detailEntityId || shownEntityId)) || null
+                onEntityChanged: {
+                    if (root.detailEntityId && !entity)
+                        root.detailEntityId = "";
+                }
+                onRequestClose: root.detailEntityId = ""
+                onOpenedChanged: {
+                    if (opened)
+                        shownEntityId = root.detailEntityId;
+                }
+                onVisibleChanged: {
+                    if (!visible && !root.iconPickerEntityId)
+                        popoutScope.forceActiveFocus();
+                }
+                content: Component {
+                    EntityCard {
+                        entityData: detailOverlay.entity
+                        detailView: true
+                        headerHost: detailOverlay.headerHost
+                        enabled: detailOverlay.opened
+                        isExpanded: true
+                        isEditing: root.isEditing
+                        isPinned: root.pinnedEntities.includes(detailOverlay.shownEntityId)
+                        detailsExpanded: root.showEntityDetails[detailOverlay.shownEntityId] || false
+                        showAttributes: root.showAttributes
+                        customIcons: root.customIcons
+                        visibilityRule: root.visibilityRules[detailOverlay.shownEntityId] || null
+                        extraEntityIds: rightColumn.extraEntityIdsFor(detailOverlay.shownEntityId)
+                        extraEntities: rightColumn.extraEntitiesFor(detailOverlay.shownEntityId)
+                        relatedEntities: rightColumn.relatedEntitiesFor(detailOverlay.shownEntityId)
+                        onToggleExpand: root.detailEntityId = ""
+                        onTogglePin: root.togglePinEntity(detailOverlay.shownEntityId)
+                        onToggleDetails: root.toggleEntityDetails(detailOverlay.shownEntityId)
+                        onRemoveEntity: HomeAssistantService.removeEntityFromMonitor(detailOverlay.shownEntityId)
+                        onOpenIconPicker: root.openIconPicker(detailOverlay.shownEntityId)
+                        onSetVisibility: rule => root.setEntityVisibility(detailOverlay.shownEntityId, rule)
+                        onAddExtraEntity: entityId => root.addDeviceExtraEntity(detailOverlay.shownEntityId, entityId)
+                        onRemoveExtraEntity: entityId => root.removeDeviceExtraEntity(detailOverlay.shownEntityId, entityId)
+                    }
+                }
+            }
+
             HomeAssistantDependencyOverlay {
                 missingDependency: HomeAssistantService.missingDependency
             }
 
+            Connections {
+                target: root
+                function onIconPickerEntityIdChanged() {
+                    if (root.iconPickerEntityId)
+                        iconPickerOverlay.forceActiveFocus();
+                    else if (detailOverlay.opened)
+                        detailOverlay.focusContent();
+                    else
+                        popoutScope.forceActiveFocus();
+                }
+            }
+
             HomeAssistantIconPickerOverlay {
+                id: iconPickerOverlay
                 entityId: root.iconPickerEntityId
                 searchText: root.iconSearchText
                 customIcons: root.customIcons

@@ -8,13 +8,16 @@ StyledRect {
     id: entityCard
 
     required property var entityData
+    property bool detailView: false
+    property Item headerHost: null
     property bool isExpanded: false
     property bool isCurrentItem: false
     property bool isPinned: false
     property bool detailsExpanded: false
     property bool showAttributes: true
     property var customIcons: ({})
-    readonly property real baseHeight: 68
+    readonly property real headerHeight: 68
+    readonly property real baseHeight: detailView ? 0 : headerHeight
     readonly property bool isControllable: Components.HassConstants.isControllableDomain(entityData && entityData.domain ? entityData.domain : "")
     readonly property bool hasControls: _hasControls()
     readonly property bool hasOperations: hasControls || _extraEntitiesWithControls().length > 0
@@ -211,11 +214,11 @@ StyledRect {
 
     width: parent ? parent.width : 300
     radius: Theme.cornerRadius * 1.5
-    color: isCurrentItem ? (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh) : (Theme.surfaceContainerLow || Theme.surfaceContainer)
-    border.width: isCurrentItem ? 2 : 1
+    color: detailView ? "transparent" : isCurrentItem ? (Theme.surfaceContainerHighest || Theme.surfaceContainerHigh) : (Theme.surfaceContainerLow || Theme.surfaceContainer)
+    border.width: detailView ? 0 : (isCurrentItem ? 2 : 1)
     border.color: isCurrentItem
         ? Theme.primary
-        : (entityMouse.containsMouse
+        : (!detailView && entityMouse.containsMouse
             ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.2)
             : Qt.rgba(Theme.outline.r, Theme.outline.g, Theme.outline.b, 0.22))
 
@@ -233,9 +236,10 @@ StyledRect {
     Component.onCompleted: {
         _renameBaseline = entityData && entityData.friendlyName ? entityData.friendlyName : "";
         _refreshActionState();
+        _loadHistory();
     }
     onIsExpandedChanged: {
-        if (isExpanded && !canToggleExpand) {
+        if (!detailView && isExpanded && !canToggleExpand) {
             toggleExpand();
             return;
         }
@@ -245,7 +249,7 @@ StyledRect {
             _loadHistory();
     }
     onCanToggleExpandChanged: {
-        if (!canToggleExpand && isExpanded)
+        if (!detailView && !canToggleExpand && isExpanded)
             toggleExpand();
     }
     onActionPendingChanged: {
@@ -267,7 +271,7 @@ StyledRect {
     }
 
     readonly property real controlsTargetHeight: controlsLoader.expanded && controlsLoader.item
-        ? Math.max(controlsLoader.item.implicitHeight, controlsLoader.item.height)
+        ? controlsLoader.item.implicitHeight
         : 0
     readonly property real expandedTargetHeight: isExpanded ? expandedContent.implicitHeight : 0
 
@@ -284,22 +288,32 @@ StyledRect {
         onTriggered: entityCard.pendingDotsPhase = (entityCard.pendingDotsPhase + 1) % 3
     }
 
+    Item {
+        id: cardHeader
+        parent: entityCard.detailView ? entityCard.headerHost : entityCard
+        width: parent ? parent.width : 0
+        height: entityCard.headerHeight + (entityCard.detailView && entityCard.isEditing ? 40 : 0)
+        enabled: entityCard.enabled
+        property real radius: entityCard.radius
+    }
+
     Rectangle {
+        parent: cardHeader
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: entityCard.baseHeight
+        height: entityCard.headerHeight
         radius: parent.radius
         color: entityCard.hoverTintColor
-        opacity: entityMouse.containsMouse ? 0.05 : 0
+        opacity: !entityCard.detailView && entityMouse.containsMouse ? 0.05 : 0
         z: 2
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
     }
 
     EntityCardHeader {
         id: headerLoader
-        width: parent.width - Theme.spacingM * 2 - (controlButton.visible ? controlButton.width + Theme.spacingS : 0) - (expandIcon.visible ? expandIcon.width + Theme.spacingS : 0)
-        height: entityCard.baseHeight
+        parent: cardHeader
+        height: entityCard.headerHeight
         anchors.left: parent.left
         anchors.leftMargin: 0
         anchors.top: parent.top
@@ -322,9 +336,9 @@ StyledRect {
         showBinaryPulse: !!entityCard.entityData && entityCard.entityData.domain === "binary_sensor" && entityCard.effectiveState === "on"
         showFanAnimation: !!entityCard.entityData && entityCard.entityData.domain === "fan" && entityCard.effectiveState === "on"
         fanAnimationDuration: Math.max(500, 3000 - (entityCard._getEffectiveAttr("percentage", 50) * 25))
-        hovered: entityMouse.containsMouse
+        hovered: !entityCard.detailView && entityMouse.containsMouse
         z: 4
-        anchors.right: controlButton.visible ? controlButton.left : expandIcon.left
+        anchors.right: entityCard.isEditing && !entityCard.detailView ? editActions.left : (controlButton.visible ? controlButton.left : parent.right)
         anchors.rightMargin: Theme.spacingS
 
         onIconClicked: {
@@ -340,9 +354,9 @@ StyledRect {
         readonly property bool expanded: entityCard.isExpanded && entityCard.hasControls
         asynchronous: true
         anchors.left: parent.left
-        anchors.leftMargin: Theme.spacingL + Theme.spacingS
+        anchors.leftMargin: entityCard.detailView ? Theme.spacingS : Theme.spacingL + Theme.spacingS
         anchors.right: parent.right
-        anchors.rightMargin: Theme.spacingL + Theme.spacingS
+        anchors.rightMargin: entityCard.detailView ? Theme.spacingS : Theme.spacingL + Theme.spacingS
         anchors.top: parent.top
         anchors.topMargin: entityCard.baseHeight
         visible: height > 0
@@ -361,9 +375,9 @@ StyledRect {
     EntityExpandableContent {
         id: expandedContent
         anchors.left: parent.left
-        anchors.leftMargin: Theme.spacingL + Theme.spacingS
+        anchors.leftMargin: entityCard.detailView ? Theme.spacingS : Theme.spacingL + Theme.spacingS
         anchors.right: parent.right
-        anchors.rightMargin: Theme.spacingL + Theme.spacingS
+        anchors.rightMargin: entityCard.detailView ? Theme.spacingS : Theme.spacingL + Theme.spacingS
         anchors.top: parent.top
         anchors.topMargin: controlsLoader.visible ? (controlsLoader.y + controlsLoader.height + Theme.spacingM) : entityCard.baseHeight
         expanded: entityCard.isExpanded
@@ -371,7 +385,7 @@ StyledRect {
 
         Loader {
             width: parent.width
-            active: entityCard.historyData.length > 0
+            active: entityCard.hasHistoryChart
             asynchronous: true
             sourceComponent: historySectionComponent
         }
@@ -381,6 +395,7 @@ StyledRect {
 
             EntityHistorySection {
                 historyData: entityCard.historyData
+                loading: entityCard.historyRequestEntityId !== ""
                 unit: entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : ""
             }
         }
@@ -562,10 +577,11 @@ StyledRect {
 
     EntityQuickActionButton {
         id: controlButton
-        anchors.right: expandIcon.left
-        anchors.rightMargin: Theme.spacingS
+        parent: cardHeader
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.spacingM
         anchors.top: parent.top
-        anchors.topMargin: (entityCard.baseHeight - height) / 2
+        anchors.topMargin: (entityCard.headerHeight - height) / 2
         z: 10
         visibleWhenActive: isControllable && !isEditing
         actionPending: entityCard.actionPending
@@ -588,40 +604,14 @@ StyledRect {
         }
         onClicked: entityCard._triggerQuickAction()
     }
-    Rectangle {
-        id: expandIcon
-        width: 40
-        height: 40
-        radius: 20
-        color: Qt.rgba(0, 0, 0, 0)
-        anchors.right: parent.right
-        anchors.rightMargin: Theme.spacingS
-        anchors.top: parent.top
-        anchors.topMargin: (entityCard.baseHeight - height) / 2
-        z: 10
-        visible: !isEditing && canExpand
-
-        DankIcon {
-            name: isExpanded ? "expand_less" : "expand_more"
-            size: 20
-            color: Theme.surfaceText
-            anchors.centerIn: parent
-        }
-
-        MouseArea {
-            anchors.fill: parent
-            cursorShape: Qt.PointingHandCursor
-            preventStealing: true
-            propagateComposedEvents: false
-            onClicked: entityCard.toggleExpand()
-        }
-    }
 
     Row {
+        id: editActions
+        parent: cardHeader
         anchors.right: parent.right
-        anchors.rightMargin: Theme.spacingS
+        anchors.rightMargin: Theme.spacingM
         anchors.top: parent.top
-        anchors.topMargin: (entityCard.baseHeight - height) / 2
+        anchors.topMargin: entityCard.detailView ? entityCard.headerHeight : (entityCard.headerHeight - height) / 2
         spacing: 2
         visible: isEditing
         z: 20
@@ -695,25 +685,26 @@ StyledRect {
 
     MouseArea {
         id: entityMouse
+        parent: cardHeader
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: entityCard.baseHeight
+        height: entityCard.headerHeight
         hoverEnabled: true
-        cursorShape: canToggleExpand ? Qt.PointingHandCursor : Qt.ArrowCursor
+        cursorShape: !detailView && canToggleExpand ? Qt.PointingHandCursor : Qt.ArrowCursor
         preventStealing: true
         z: 1
         enabled: !isRenaming
 
         onClicked: {
-            if (canToggleExpand)
+            if (!detailView && canToggleExpand)
                 entityCard.toggleExpand();
         }
 
         onDoubleClicked: {
             if (isEditing) {
                 entityCard._startRename();
-            } else if (canExpand) {
+            } else if (!detailView && canExpand) {
                 entityCard.toggleExpand();
             }
         }

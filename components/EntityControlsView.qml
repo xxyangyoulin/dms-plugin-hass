@@ -15,7 +15,6 @@ Item {
         id: controlsLoader
 
         width: root.width
-        height: item ? Math.max(item.implicitHeight, item.height) : 0
         sourceComponent: {
             if (!root.entityData)
                 return null;
