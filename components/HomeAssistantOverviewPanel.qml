@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import "../services"
 
 Rectangle {
     id: root
@@ -83,6 +84,15 @@ Rectangle {
                 radius: 17
                 anchors.verticalCenter: parent.verticalCenter
                 color: Qt.rgba(root.statusColor.r, root.statusColor.g, root.statusColor.b, 0.10)
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        if (HomeAssistantService.hassUrl && HomeAssistantService.hassUrl.length > 0)
+                            Qt.openUrlExternally(HomeAssistantService.hassUrl);
+                    }
+                }
 
                 DankIcon {
                     anchors.centerIn: parent
