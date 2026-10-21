@@ -9,6 +9,10 @@ Canvas {
     property real lineWidth: 2
     property bool fillEnabled: true
     property real revealProgress: 0
+    readonly property int hoveredIndex: revealProgress === 1 && mouseArea.containsMouse && historyData.length >= 2 && width > 0
+        ? Math.max(0, Math.min(historyData.length - 1, Math.round(mouseArea.mouseX / width * (historyData.length - 1)))) : -1
+    readonly property string hoveredTime: hoveredIndex >= 0
+        ? Qt.formatDateTime(historyData[hoveredIndex].time, "MM/dd HH:mm") : ""
 
     NumberAnimation on revealProgress {
         id: revealAnim
@@ -174,11 +178,14 @@ Canvas {
         }
 
         // Draw interactive tooltip on top
-        if (revealProgress === 1 && mouseArea.containsMouse) {
-            var mouseX = mouseArea.mouseX;
-            var idx = Math.round((mouseX / drawWidth) * (points.length - 1));
-            idx = Math.max(0, Math.min(points.length - 1, idx));
-            var p = points[idx];
+        if (hoveredIndex >= 0) {
+            var p = points[hoveredIndex];
+            ctx.beginPath();
+            ctx.moveTo(p.x, 0);
+            ctx.lineTo(p.x, height);
+            ctx.strokeStyle = Qt.rgba(lineColor.r, lineColor.g, lineColor.b, 0.35);
+            ctx.lineWidth = 1;
+            ctx.stroke();
             drawPill(p.x, p.y, p.value + (unit ? " " + unit : ""), true);
         }
     }

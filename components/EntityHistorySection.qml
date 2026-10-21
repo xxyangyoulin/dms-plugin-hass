@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Layouts
 import qs.Common
 import qs.Widgets
 
@@ -12,13 +13,26 @@ Column {
     spacing: Theme.spacingS
     visible: historyData.length > 0
 
-    StyledText {
-        text: I18n.tr("24h History", "Sensor history label")
-        font.pixelSize: Theme.fontSizeSmall
-        color: Theme.surfaceVariantText
+    RowLayout {
+        width: parent.width
+        spacing: Theme.spacingS
+
+        StyledText {
+            Layout.fillWidth: true
+            text: I18n.tr("24h History", "Sensor history label")
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.surfaceVariantText
+        }
+
+        StyledText {
+            text: sparkline.hoveredTime
+            font.pixelSize: Theme.fontSizeSmall
+            color: Theme.surfaceVariantText
+        }
     }
 
     Sparkline {
+        id: sparkline
         width: parent.width
         height: 50
         historyData: root.historyData
