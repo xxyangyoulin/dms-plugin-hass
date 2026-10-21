@@ -105,10 +105,12 @@ StyledRect {
         }
 
         HoverHandler {
+            enabled: root.isEditing
             cursorShape: Qt.PointingHandCursor
         }
 
         TapHandler {
+            enabled: root.isEditing
             acceptedButtons: Qt.LeftButton
             gesturePolicy: TapHandler.ReleaseWithinBounds
             onTapped: root.iconClicked()
