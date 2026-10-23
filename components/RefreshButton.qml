@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 PanelActionButton {
     id: root
@@ -49,7 +50,7 @@ PanelActionButton {
     showIcon: false
     busy: spinning
 
-    DankIcon {
+    DIcon {
         id: refreshIcon
         anchors.centerIn: parent
         name: root.iconName

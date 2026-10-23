@@ -2,6 +2,7 @@ import QtQuick
 import qs.Common
 import qs.Services
 import qs.Widgets
+import qs.DCommon.Widgets
 import "../services"
 import "."
 
@@ -52,7 +53,7 @@ StyledRect {
         visible: parent.visible
         z: 2
         
-        DankIcon {
+        DIcon {
             name: parent.visible ? HassConstants.getIconForDomain(shortcutData.domain) : ""
             size: 15
             color: Theme.surfaceVariantText

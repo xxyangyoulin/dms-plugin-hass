@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 import "../services"
 import "." as Components
 
@@ -137,7 +138,7 @@ Column {
                 anchors.centerIn: parent
                 spacing: Theme.spacingS
                 
-                DankIcon {
+                DIcon {
                     name: parent.parent.currentVal ? "check" : "close"
                     size: 18
                     color: parent.parent.currentVal ? root.selectedForegroundColor : Theme.surfaceText

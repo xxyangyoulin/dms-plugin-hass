@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 Item {
     id: root
@@ -30,7 +31,7 @@ Item {
         Behavior on color { ColorAnimation { duration: 150 } }
     }
 
-    DankIcon {
+    DIcon {
         name: root.iconName
         size: root.iconSize
         color: root.iconColor

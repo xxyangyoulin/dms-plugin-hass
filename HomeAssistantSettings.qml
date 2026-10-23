@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 import qs.Modules.Plugins
 import "./services"
 
@@ -166,7 +167,7 @@ PluginSettings {
             wrapMode: Text.WordWrap
         }
 
-        DankTextField {
+        DTextField {
             id: tokenField
             width: parent.width
             placeholderText: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -224,7 +225,7 @@ PluginSettings {
             Row {
                 spacing: Theme.spacingS
 
-                DankIcon {
+                DIcon {
                     name: root.statusIcon
                     size: Theme.iconSize
                     color: root.statusColor

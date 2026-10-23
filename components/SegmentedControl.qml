@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 Item {
     id: root
@@ -81,7 +82,7 @@ Item {
                     anchors.centerIn: parent
                     spacing: Theme.spacingXS
 
-                    DankIcon {
+                    DIcon {
                         id: selectedIcon
 
                         name: root.icon

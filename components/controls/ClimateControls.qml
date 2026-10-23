@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import qs.Common
 import qs.Services
 import qs.Widgets
+import qs.DCommon.Widgets
 import "../"
 import "../../services"
 
@@ -96,7 +97,7 @@ Column {
                     radius: 20
                     color: Theme.surfaceContainerHigh
 
-                    DankIcon {
+                    DIcon {
                         name: "remove"
                         anchors.centerIn: parent
                         color: Theme.surfaceText
@@ -139,7 +140,7 @@ Column {
                     radius: 20
                     color: Theme.surfaceContainerHigh
 
-                    DankIcon {
+                    DIcon {
                         name: "add"
                         anchors.centerIn: parent
                         color: Theme.surfaceText

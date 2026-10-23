@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 Rectangle {
     id: root
@@ -37,7 +38,7 @@ Rectangle {
         Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
     }
 
-    DankIcon {
+    DIcon {
         name: root.iconName
         size: 20
         color: root.actionError

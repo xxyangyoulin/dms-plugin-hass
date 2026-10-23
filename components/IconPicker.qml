@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell.Io
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 Rectangle {
     id: root
@@ -60,7 +61,7 @@ Rectangle {
                     radius: Theme.cornerRadius
                     color: backMouseArea.containsMouse ? Theme.surfaceContainerHigh : "transparent"
 
-                    DankIcon {
+                    DIcon {
                         anchors.centerIn: parent
                         name: "arrow_back"
                         size: 20
@@ -101,7 +102,7 @@ Rectangle {
                     anchors.centerIn: parent
                     spacing: Theme.spacingXS
 
-                    DankIcon {
+                    DIcon {
                         name: "restart_alt"
                         size: 16
                         color: Theme.surfaceVariantText
@@ -142,7 +143,7 @@ Rectangle {
                 anchors.rightMargin: Theme.spacingS
                 spacing: Theme.spacingXS
 
-                DankIcon {
+                DIcon {
                     name: "search"
                     size: 18
                     color: Theme.surfaceVariantText
@@ -178,7 +179,7 @@ Rectangle {
                     visible: root.searchText.length > 0
                     anchors.verticalCenter: parent.verticalCenter
 
-                    DankIcon {
+                    DIcon {
                         anchors.centerIn: parent
                         name: "close"
                         size: 14
@@ -227,7 +228,7 @@ Rectangle {
                     return iconItemMouse.containsMouse ? Theme.surfaceContainerHigh : "transparent";
                 }
 
-                DankIcon {
+                DIcon {
                     anchors.centerIn: parent
                     name: modelData
                     size: 24

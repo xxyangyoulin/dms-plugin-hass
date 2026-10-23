@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 Column {
     id: root
@@ -82,7 +83,7 @@ Column {
                 anchors.horizontalCenter: parent.horizontalCenter
                 color: Qt.rgba(root.statusColor.r, root.statusColor.g, root.statusColor.b, 0.10)
 
-                DankIcon {
+                DIcon {
                     name: root.iconName
                     size: 30
                     color: root.statusColor

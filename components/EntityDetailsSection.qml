@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 Column {
     id: root
@@ -30,7 +31,7 @@ Column {
             anchors.rightMargin: Theme.spacingM
             spacing: Theme.spacingS
 
-            DankIcon {
+            DIcon {
                 name: root.detailsExpanded ? "expand_less" : "expand_more"
                 size: 18
                 color: root.detailsExpanded ? Theme.primary : Theme.surfaceVariantText

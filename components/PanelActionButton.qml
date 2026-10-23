@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 Rectangle {
     id: root
@@ -32,7 +33,7 @@ Rectangle {
 
     Behavior on color { ColorAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
-    DankIcon {
+    DIcon {
         visible: root.showIcon
         anchors.centerIn: parent
         name: root.iconName

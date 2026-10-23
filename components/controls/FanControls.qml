@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import qs.Common
 import qs.Services
 import qs.Widgets
+import qs.DCommon.Widgets
 import "../"
 import "../../services"
 
@@ -158,7 +159,7 @@ Column {
                     anchors.centerIn: parent
                     spacing: Theme.spacingS
 
-                    DankIcon {
+                    DIcon {
                         name: "cached"
                         size: 18
                         color: parent.parent.sectionData.value ? root.selectedForegroundColor : Theme.surfaceText

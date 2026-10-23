@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import qs.Common
 import qs.Services
 import qs.Widgets
+import qs.DCommon.Widgets
 import "../"
 import "../../services"
 
@@ -93,7 +94,7 @@ Column {
         visible: entityData.state !== "off" && entityData.state !== "unavailable" && entityData.state !== "unknown"
 
         // Prev
-        DankIcon {
+        DIcon {
             name: "skip_previous"
             size: 24
             color: previousMouse.containsMouse ? Theme.primary : Theme.surfaceText
@@ -113,7 +114,7 @@ Column {
         }
 
         // Play/Pause/Stop
-        DankIcon {
+        DIcon {
             name: {
                 const state = root.getVal("state", "");
                 if (state === "playing") return "pause_circle";
@@ -141,7 +142,7 @@ Column {
         }
 
         // Next
-        DankIcon {
+        DIcon {
             name: "skip_next"
             size: 24
             color: nextMouse.containsMouse ? Theme.primary : Theme.surfaceText
@@ -171,7 +172,7 @@ Column {
             width: parent.width
             spacing: Theme.spacingS
             
-            DankIcon {
+            DIcon {
                 name: root.getVal("is_volume_muted", false) ? "volume_off" : "volume_up"
                 size: 18
                 color: Theme.surfaceVariantText

@@ -2,6 +2,7 @@ import QtQuick
 import qs.Common
 import qs.Services
 import qs.Widgets
+import qs.DCommon.Widgets
 import "../services"
 import "."
 
@@ -213,7 +214,7 @@ Item {
                 anchors.fill: parent
                 spacing: Theme.spacingXS
 
-                DankIcon {
+                DIcon {
                     name: EntityHelper.getEntityIcon(model, root.customIcons)
                     size: Theme.barIconSize(root.barThickness, -4)
                     color: stateColor
@@ -253,7 +254,7 @@ Item {
                 anchors.centerIn: parent
                 spacing: 2
 
-                DankIcon {
+                DIcon {
                     name: EntityHelper.getEntityIcon(model, root.customIcons)
                     size: Theme.barIconSize(root.barThickness)
                     color: stateColor

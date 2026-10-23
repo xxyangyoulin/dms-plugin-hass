@@ -3,6 +3,7 @@ import "../services"
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 StyledRect {
     id: entityCard
@@ -555,7 +556,7 @@ StyledRect {
                 anchors.centerIn: parent
                 spacing: Theme.spacingS
 
-                DankIcon {
+                DIcon {
                     name: entityCard.showExtraEntityPicker ? "expand_less" : "add_circle"
                     size: 16
                     color: Theme.surfaceText

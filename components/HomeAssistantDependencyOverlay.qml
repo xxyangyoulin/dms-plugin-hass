@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 Rectangle {
     id: root
@@ -17,7 +18,7 @@ Rectangle {
         anchors.centerIn: parent
         spacing: Theme.spacingM
 
-        DankIcon {
+        DIcon {
             name: "error"
             size: 48
             color: Theme.error

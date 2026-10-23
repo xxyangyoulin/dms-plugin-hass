@@ -6,6 +6,7 @@ import QtQuick.Layouts
 import qs.Common
 import qs.Services
 import qs.Widgets
+import qs.DCommon.Widgets
 
 Column {
     id: root
@@ -167,7 +168,7 @@ Column {
                                 elide: Text.ElideRight
                             }
 
-                            DankIcon {
+                            DIcon {
                                 id: dropdownIcon
                                 name: optionPopup.visible ? "expand_less" : "expand_more"
                                 size: 20
@@ -284,7 +285,7 @@ Column {
                 anchors.centerIn: parent
                 spacing: Theme.spacingS
 
-                DankIcon {
+                DIcon {
                     name: parent.sectionData.icon
                     size: 20
                     color: Theme.primary

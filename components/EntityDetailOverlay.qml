@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 FocusScope {
     id: root
@@ -190,7 +191,7 @@ FocusScope {
                 HoverHandler {
                     cursorShape: Qt.PointingHandCursor
                 }
-                contentItem: DankIcon {
+                contentItem: DIcon {
                     name: "close"
                     size: 20
                     color: Theme.surfaceText

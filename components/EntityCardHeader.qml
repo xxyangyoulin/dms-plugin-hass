@@ -1,6 +1,7 @@
 import QtQuick
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 
 StyledRect {
     id: root
@@ -79,7 +80,7 @@ StyledRect {
             }
         }
 
-        DankIcon {
+        DIcon {
             id: entityIcon
             name: root.iconName
             size: 22

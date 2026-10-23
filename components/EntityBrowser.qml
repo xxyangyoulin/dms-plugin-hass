@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 import qs.Services
 import "../services"
 import "."
@@ -97,7 +98,7 @@ Rectangle {
                     anchors.rightMargin: Theme.spacingS
                     spacing: Theme.spacingS
 
-                    DankIcon {
+                    DIcon {
                         name: "search"
                         size: 18
                         color: Theme.surfaceVariantText
@@ -132,7 +133,7 @@ Rectangle {
                         visible: root.searchText.length > 0
                         anchors.verticalCenter: parent.verticalCenter
 
-                        DankIcon {
+                        DIcon {
                             name: "close"
                             size: 14
                             color: clearMouse.containsMouse ? Theme.surface : Theme.surfaceVariantText
@@ -181,7 +182,7 @@ Rectangle {
                             anchors.centerIn: parent
                             spacing: 4
 
-                            DankIcon {
+                            DIcon {
                                 name: "tune"
                                 size: 16
                                 color: root.browseMode === "more_info" ? Theme.primary : Theme.surfaceText
@@ -209,7 +210,7 @@ Rectangle {
                             anchors.centerIn: parent
                             spacing: 4
 
-                            DankIcon {
+                            DIcon {
                                 name: "devices"
                                 size: 16
                                 color: root.browseMode === "device" ? Theme.primary : Theme.surfaceText
@@ -226,7 +227,7 @@ Rectangle {
             }
         }
 
-        DankListView {
+        DListView {
             id: browserListView
             width: parent.width
             height: parent.height - root.browserHeaderHeight - Theme.spacingS
@@ -275,7 +276,7 @@ Rectangle {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Theme.spacingS
 
-                            DankIcon {
+                            DIcon {
                                 name: groupColumn.isExpanded ? "expand_less" : "expand_more"
                                 size: 16
                                 color: Theme.primary
@@ -384,7 +385,7 @@ Rectangle {
                                         border.color: parent.parent.isMonitored ? Theme.primary : Theme.outline
                                         anchors.verticalCenter: parent.verticalCenter
 
-                                        DankIcon {
+                                        DIcon {
                                             name: "check"
                                             size: 14
                                             color: Theme.primaryText
@@ -407,7 +408,7 @@ Rectangle {
                                         visible: parent.parent.canBeShortcut
                                         anchors.verticalCenter: parent.verticalCenter
                                         
-                                        DankIcon {
+                                        DIcon {
                                             name: entityRowCard.isShortcut ? "star" : "star_border"
                                             size: 18
                                             color: entityRowCard.isShortcut ? Theme.primary : Theme.surfaceVariantText
@@ -428,7 +429,7 @@ Rectangle {
                                         }
                                     }
 
-                                    DankIcon {
+                                    DIcon {
                                         id: entityTypeIcon
                                         name: HassConstants.getIconForDomain(modelData.domain)
                                         size: 18

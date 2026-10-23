@@ -42,10 +42,6 @@ PluginComponent {
     property bool isEditing: false // Global edit mode state
     property bool manualRefreshInProgress: false
 
-    Ref {
-        service: HomeAssistantService
-    }
-
     function loadPersistentUiValue(key, fallbackValue) {
         if (pluginService && pluginService.loadPluginState) {
             const stateValue = pluginService.loadPluginState("homeAssistantMonitor", key, undefined);
