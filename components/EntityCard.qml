@@ -15,6 +15,7 @@ StyledRect {
     property bool isPinned: false
     property bool detailsExpanded: false
     property bool showAttributes: true
+    property bool showHistoryPreview: true
     property var customIcons: ({})
     readonly property real headerHeight: 68
     readonly property real baseHeight: detailView ? 0 : headerHeight
@@ -135,14 +136,14 @@ StyledRect {
     }
 
     function _loadHistory() {
-        if (!isExpanded || !hasHistoryChart || !entityData || historyRequestEntityId === entityData.entityId)
+        if ((!isExpanded && (detailView || !visible || !showHistoryPreview)) || !hasHistoryChart || !entityData || historyRequestEntityId === entityData.entityId)
             return;
         const requestedEntityId = entityData.entityId;
         historyRequestEntityId = requestedEntityId;
         HomeAssistantService.fetchHistory(requestedEntityId, function(data) {
             if (historyRequestEntityId === requestedEntityId)
                 historyRequestEntityId = "";
-            if (!isExpanded || !entityData || entityData.entityId !== requestedEntityId || !hasHistoryChart)
+            if (!entityData || entityData.entityId !== requestedEntityId || !hasHistoryChart)
                 return;
             historyEntityId = requestedEntityId;
             historyData = data;
@@ -238,6 +239,14 @@ StyledRect {
         _refreshActionState();
         _loadHistory();
     }
+    onVisibleChanged: {
+        if (visible)
+            _loadHistory();
+    }
+    onShowHistoryPreviewChanged: {
+        if (showHistoryPreview)
+            _loadHistory();
+    }
     onIsExpandedChanged: {
         if (!detailView && isExpanded && !canToggleExpand) {
             toggleExpand();
@@ -295,6 +304,21 @@ StyledRect {
         height: entityCard.headerHeight
         enabled: entityCard.enabled
         property real radius: entityCard.radius
+    }
+
+    Loader {
+        parent: cardHeader
+        anchors.right: parent.right
+        anchors.rightMargin: Theme.spacingS
+        anchors.verticalCenter: parent.verticalCenter
+        width: parent.width * 0.3
+        height: parent.height * 0.45
+        active: entityCard.showHistoryPreview && !entityCard.detailView && entityCard.hasHistoryChart
+        sourceComponent: Sparkline {
+            historyData: entityCard.historyData
+            previewOnly: true
+            opacity: 0.22
+        }
     }
 
     Rectangle {

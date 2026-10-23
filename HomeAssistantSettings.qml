@@ -281,6 +281,13 @@ PluginSettings {
     }
 
     ToggleSetting {
+        settingKey: "showHistoryPreview"
+        label: I18n.tr("Show History Preview", "Home Assistant history preview setting")
+        description: I18n.tr("Show a 24-hour trend line in the background of numeric sensor cards.", "Home Assistant history preview description")
+        defaultValue: true
+    }
+
+    ToggleSetting {
         settingKey: "editModeTwoColumns"
         label: I18n.tr("Two-Column Edit Mode", "Home Assistant edit layout setting")
         description: I18n.tr("Expand the plugin popout and show the entity browser beside the monitored list while editing.", "Home Assistant edit layout description")

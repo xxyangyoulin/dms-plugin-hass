@@ -19,6 +19,7 @@ Column {
     property var pinnedEntityIds: []
     property var showEntityDetails: ({})
     property bool showAttributes: true
+    property bool showHistoryPreview: true
     property var customIcons: ({})
     property var visibilityRules: ({})
     property var deviceExtraEntities: ({})
@@ -175,6 +176,7 @@ Column {
                 isPinned: rowEntityData ? root.pinnedEntityIds.includes(rowEntityData.entityId) : false
                 detailsExpanded: rowEntityData ? (root.showEntityDetails[rowEntityData.entityId] || false) : false
                 showAttributes: root.showAttributes
+                showHistoryPreview: root.showHistoryPreview
                 customIcons: root.customIcons
                 visibilityRule: rowEntityData ? (root.visibilityRules[rowEntityData.entityId] || null) : null
                 extraEntityIds: rowEntityData ? root.extraEntityIdsFor(rowEntityData.entityId) : []

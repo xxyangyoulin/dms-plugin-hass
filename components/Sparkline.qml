@@ -8,11 +8,12 @@ Canvas {
     property color lineColor: Theme.primary
     property real lineWidth: 2
     property bool fillEnabled: true
+    property bool previewOnly: false
     property real revealProgress: 0
     readonly property real startTime: historyData.length ? historyData[0].time.getTime() : 0
     readonly property real endTime: historyData.length ? historyData[historyData.length - 1].time.getTime() : 0
     readonly property int hoveredIndex: {
-        if (revealProgress !== 1 || !mouseArea.containsMouse || !historyData.length || width <= 0)
+        if (previewOnly || revealProgress !== 1 || !mouseArea.containsMouse || !historyData.length || width <= 0)
             return -1;
         const time = startTime + Math.max(0, Math.min(1, mouseArea.mouseX / width)) * (endTime - startTime);
         let nearest = 0;
@@ -49,6 +50,7 @@ Canvas {
     MouseArea {
         id: mouseArea
         anchors.fill: parent
+        enabled: !canvas.previewOnly
         hoverEnabled: true
         onPositionChanged: canvas.requestPaint()
         onExited: canvas.requestPaint()
@@ -74,7 +76,7 @@ Canvas {
         var range = max - min;
         if (range === 0) range = 1;
 
-        var padding = 15; // Increased padding for labels
+        var padding = previewOnly ? lineWidth : 15;
         var drawHeight = height - padding * 2;
 
         var points = [];
@@ -106,7 +108,7 @@ Canvas {
         ctx.stroke();
 
         // Draw Fill
-        if (fillEnabled) {
+        if (fillEnabled && !previewOnly) {
             ctx.beginPath();
             ctx.moveTo(visiblePoints[0].x, visiblePoints[0].y);
             for (var i = 0; i < visiblePoints.length - 1; i++) {
@@ -125,6 +127,8 @@ Canvas {
             ctx.fillStyle = gradient;
             ctx.fill();
         }
+
+        if (previewOnly) return;
 
         // Draw labels and interactive tooltip
         ctx.font = "bold " + Theme.fontSizeSmall + "px sans-serif";

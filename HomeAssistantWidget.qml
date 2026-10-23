@@ -796,6 +796,7 @@ PluginComponent {
                         pinnedEntityIds: root.pinnedEntities
                         showEntityDetails: root.showEntityDetails
                         showAttributes: root.showAttributes
+                        showHistoryPreview: root.pluginData.showHistoryPreview !== false
                         customIcons: root.customIcons
                         visibilityRules: root.visibilityRules
                         deviceExtraEntities: root.deviceExtraEntities
