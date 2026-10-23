@@ -292,7 +292,7 @@ StyledRect {
         id: cardHeader
         parent: entityCard.detailView ? entityCard.headerHost : entityCard
         width: parent ? parent.width : 0
-        height: entityCard.headerHeight + (entityCard.detailView && entityCard.isEditing ? 40 : 0)
+        height: entityCard.headerHeight
         enabled: entityCard.enabled
         property real radius: entityCard.radius
     }
@@ -611,9 +611,9 @@ StyledRect {
         anchors.right: parent.right
         anchors.rightMargin: Theme.spacingM
         anchors.top: parent.top
-        anchors.topMargin: entityCard.detailView ? entityCard.headerHeight : (entityCard.headerHeight - height) / 2
+        anchors.topMargin: (entityCard.headerHeight - height) / 2
         spacing: 2
-        visible: isEditing
+        visible: entityCard.isEditing && !entityCard.detailView
         z: 20
 
         EditActionButton {

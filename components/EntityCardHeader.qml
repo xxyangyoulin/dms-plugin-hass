@@ -190,6 +190,8 @@ StyledRect {
                         id: stateLabel
                         text: root.stateText
                         font.pixelSize: Theme.fontSizeSmall - 2
+                        minimumPixelSize: Math.max(8, Theme.fontSizeSmall - 6)
+                        fontSizeMode: Text.HorizontalFit
                         font.weight: Font.DemiBold
                         color: root.stateTone
                         elide: Text.ElideRight
@@ -197,7 +199,7 @@ StyledRect {
                         anchors.verticalCenter: parent.verticalCenter
                         width: Math.min(
                             implicitWidth,
-                            Math.max(0, root.width - Theme.spacingS * 2 - pendingDotsContainer.width - stateRow.spacing)
+                            Math.max(0, statePill.parent.width - Theme.spacingS * 2 - pendingDotsContainer.width - stateRow.spacing)
                         )
                     }
 
