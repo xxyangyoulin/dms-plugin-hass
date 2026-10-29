@@ -195,6 +195,7 @@ StyledRect {
                         fontSizeMode: Text.HorizontalFit
                         font.weight: Font.DemiBold
                         color: root.stateTone
+                        wrapMode: Text.NoWrap
                         elide: Text.ElideRight
                         maximumLineCount: 1
                         anchors.verticalCenter: parent.verticalCenter
