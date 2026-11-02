@@ -501,6 +501,8 @@ Singleton {
                                            root.latency >= 1000 ? I18n.tr("Home Assistant connection is slow", "Home Assistant degraded connection") : "");
                     } else if (response && response.success === false) {
                         setConnectionState("degraded", I18n.tr("Home Assistant ping timed out", "Home Assistant degraded connection"));
+                        if (socket && socket.status === root.wsOpen && !root.suppressReconnect && !root.connectionResetQueued)
+                            socket.reconnect();
                     }
                 });
             } else {
@@ -822,6 +824,8 @@ Singleton {
                         PluginService.setGlobalVar(pluginId, "latency", root.latency);
                     } else if (response && response.success === false) {
                         setConnectionState("degraded", I18n.tr("Home Assistant ping timed out", "Home Assistant degraded connection"));
+                        if (socket && socket.status === root.wsOpen && !root.suppressReconnect && !root.connectionResetQueued)
+                            socket.reconnect();
                     }
                 });
             });
