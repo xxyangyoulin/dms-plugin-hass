@@ -176,8 +176,8 @@ PluginSettings {
 
             onTextEdited: root.tokenValue = text
             onEditingFinished: root.persistTokenValue()
-            onActiveFocusChanged: {
-                if (!activeFocus) {
+            onFocusStateChanged: function(hasFocus) {
+                if (!hasFocus) {
                     root.tokenValue = text;
                     root.persistTokenValue();
                 }
