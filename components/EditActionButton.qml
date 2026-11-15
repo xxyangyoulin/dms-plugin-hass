@@ -7,6 +7,7 @@ Item {
     id: root
     
     property string iconName: ""
+    property string tooltipText: ""
     property color iconColor: Theme.onSurface
     property color backgroundColor: Theme.surfaceContainerHigh
     property real backgroundOpacity: 0.7
@@ -42,6 +43,7 @@ Item {
     }
 
     MouseArea {
+        id: mouseArea
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
         onClicked: root.clicked()
@@ -50,5 +52,11 @@ Item {
         // Simple hover effect
         onEntered: parent.opacity = 0.9
         onExited: parent.opacity = 1.0
+    }
+
+    DTooltipHost {
+        hoverArea: mouseArea
+        target: root
+        text: root.tooltipText
     }
 }

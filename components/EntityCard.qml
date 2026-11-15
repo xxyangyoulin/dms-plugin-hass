@@ -645,6 +645,7 @@ StyledRect {
             width: 32
             height: 32
             iconName: "push_pin"
+            tooltipText: isPinned ? I18n.tr("Unpin from status bar", "Edit action tooltip") : I18n.tr("Pin to status bar", "Edit action tooltip")
             iconSize: 16
             iconColor: isPinned ? (Theme.primary || "transparent") : Theme.surfaceText
             backgroundColor: isPinned ? (Theme.primary || "transparent") : (Theme.surfaceContainerHigh || "transparent")
@@ -660,6 +661,7 @@ StyledRect {
             // Toggle: always shown  <->  only shown on the bar when the entity is "active"
             // (state is not off/idle/none/closed/empty). Full op set lives in EntityHelper.entityVisible.
             iconName: showWhenActive ? "filter_alt" : "visibility"
+            tooltipText: showWhenActive ? I18n.tr("Always show on status bar", "Edit action tooltip") : I18n.tr("Show on status bar only when active", "Edit action tooltip")
             iconSize: 16
             iconColor: showWhenActive ? (Theme.primary || "transparent") : Theme.surfaceText
             backgroundColor: showWhenActive ? (Theme.primary || "transparent") : (Theme.surfaceContainerHigh || "transparent")
@@ -671,6 +673,7 @@ StyledRect {
             width: 32
             height: 32
             iconName: "vertical_align_top"
+            tooltipText: I18n.tr("Move to top", "Edit action tooltip")
             iconSize: 16
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
@@ -681,6 +684,7 @@ StyledRect {
             width: 32
             height: 32
             iconName: "arrow_upward"
+            tooltipText: I18n.tr("Move up", "Edit action tooltip")
             iconSize: 16
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
@@ -691,6 +695,7 @@ StyledRect {
             width: 32
             height: 32
             iconName: "arrow_downward"
+            tooltipText: I18n.tr("Move down", "Edit action tooltip")
             iconSize: 16
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
@@ -702,6 +707,7 @@ StyledRect {
             height: 32
             iconName: "close"
             iconSize: 14
+            tooltipText: I18n.tr("Remove from monitored entities", "Edit action tooltip")
             iconColor: Theme.primaryText
             backgroundColor: Theme.error || "transparent"
             onClicked: entityCard.removeEntity()
