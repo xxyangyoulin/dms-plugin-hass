@@ -19,6 +19,7 @@ Item {
     property var customIcons: ({})
     property var visibilityRules: ({})  // { entityId: { op, value } } — conditional bar visibility
     property real barThickness: 0
+    property var barConfig: null
     property bool showHomeIcon: true
     property bool showButtonsOnStatusBar: true
 
@@ -144,6 +145,7 @@ Item {
 
         HaIcon {
             barThickness: root.barThickness
+            barConfig: root.barConfig
             haAvailable: root.haAvailable
             connectionStatus: root.connectionStatus
             entityCount: root.entityCount
@@ -160,6 +162,7 @@ Item {
         HaCount {
             entityCount: root.entityCount
             barThickness: root.barThickness
+            barConfig: root.barConfig
             anchors.verticalCenter: parent.verticalCenter
             visible: pinnedEntitiesModel.count === 0
         }
@@ -174,6 +177,7 @@ Item {
 
         HaIcon {
             barThickness: root.barThickness
+            barConfig: root.barConfig
             haAvailable: root.haAvailable
             connectionStatus: root.connectionStatus
             entityCount: root.entityCount
@@ -190,6 +194,7 @@ Item {
         HaCount {
             entityCount: root.entityCount
             barThickness: root.barThickness
+            barConfig: root.barConfig
             anchors.horizontalCenter: parent.horizontalCenter
             visible: pinnedEntitiesModel.count === 0
         }
@@ -216,7 +221,7 @@ Item {
 
                 DIcon {
                     name: EntityHelper.getEntityIcon(model, root.customIcons)
-                    size: Theme.barIconSize(root.barThickness, -4)
+                    size: Theme.barIconSize(root.barThickness, -4, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
                     color: stateColor
                     anchors.verticalCenter: parent.verticalCenter
                 }
@@ -238,9 +243,9 @@ Item {
                     text: {
                         const translationVersion = HomeAssistantService.translationsVersion;
                         var state = model.state;
-                        return HomeAssistantService.formatEntityState(model.domain || "", state, model.unitOfMeasurement);
+                        return HomeAssistantService.formatEntityState(model.domain || "", state, model.unitOfMeasurement, model.entityId);
                     }
-                    font.pixelSize: Theme.barTextSize(root.barThickness)
+                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                     color: Theme.widgetTextColor || Theme.surfaceText
                     height: parent.height
                     verticalAlignment: Text.AlignVCenter
@@ -256,7 +261,7 @@ Item {
 
                 DIcon {
                     name: EntityHelper.getEntityIcon(model, root.customIcons)
-                    size: Theme.barIconSize(root.barThickness)
+                    size: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
                     color: stateColor
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
@@ -278,9 +283,9 @@ Item {
                     text: {
                         const translationVersion = HomeAssistantService.translationsVersion;
                         var state = model.state;
-                        return HomeAssistantService.formatEntityState(model.domain || "", state, model.unitOfMeasurement);
+                        return HomeAssistantService.formatEntityState(model.domain || "", state, model.unitOfMeasurement, model.entityId);
                     }
-                    font.pixelSize: Theme.barTextSize(root.barThickness)
+                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                     color: Theme.widgetTextColor || Theme.surfaceText
                     anchors.horizontalCenter: parent.horizontalCenter
                 }

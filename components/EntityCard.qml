@@ -40,7 +40,7 @@ StyledRect {
     readonly property string stateSummaryText: {
         const translationVersion = HomeAssistantService.translationsVersion;
         const domain = entityData && entityData.domain ? entityData.domain : "";
-        let stateText = HomeAssistantService.formatEntityState(domain, effectiveState, entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "");
+        let stateText = HomeAssistantService.formatEntityState(domain, effectiveState, entityData && entityData.unitOfMeasurement ? entityData.unitOfMeasurement : "", entityData && entityData.entityId ? entityData.entityId : "");
         if (domain === "climate") {
             const targetTemperature = _getEffectiveAttr("temperature", undefined);
             if (targetTemperature !== undefined && targetTemperature !== null && !isNaN(Number(targetTemperature))) {

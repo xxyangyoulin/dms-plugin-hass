@@ -176,9 +176,11 @@ Singleton {
     }
 
     // Devices cache for entity grouping by device
+    readonly property string ungroupedDeviceId: "__ungrouped__"
     property var devicesCache: ({})
     property var entityToDeviceCache: ({})
     property var entityRegistryCache: ({})
+    property var entityPrecisionCache: ({})
     property bool devicesLoaded: false
     property bool devicesLoading: false
     property string lastMonitoredIdsStr: "" // Tracks structure to avoid jitter
@@ -1186,12 +1188,24 @@ Singleton {
         return translated || fallback || attrName;
     }
 
-    function formatEntityState(domain, state, unitOfMeasurement) {
+    function formatEntityState(domain, state, unitOfMeasurement, entityId) {
         const val = state || "?";
         const unit = unitOfMeasurement || "";
         if (unit && val !== "unavailable" && val !== "unknown")
-            return val + unit;
+            return formatNumericState(val, entityId) + unit;
         return translateEntityState(domain, val);
+    }
+
+    function formatNumericState(value, entityId) {
+        if (!entityId)
+            return value;
+        const dp = entityPrecisionCache[entityId];
+        if (dp === undefined || dp === null)
+            return value;
+        const num = Number(value);
+        if (!isFinite(num))
+            return value;
+        return num.toFixed(dp);
     }
 
     // Get service definition for a specific domain and service
@@ -1236,6 +1250,7 @@ Singleton {
 
                     const newEntityToDeviceCache = {};
                     const newEntityRegistryCache = {};
+                    const newEntityPrecisionCache = {};
 
                     entities.forEach(e => {
                         const device = e.device_id ? newDevicesCache[e.device_id] : null;
@@ -1244,15 +1259,34 @@ Singleton {
                             originalName: e.original_name || "",
                             deviceName: device ? device.name : ""
                         };
+                        const sensorOpts = (e.options && e.options.sensor) || null;
+                        if (sensorOpts) {
+                            const dp = sensorOpts.display_precision !== undefined && sensorOpts.display_precision !== null
+                                ? sensorOpts.display_precision
+                                : sensorOpts.suggested_display_precision;
+                            if (dp !== undefined && dp !== null)
+                                newEntityPrecisionCache[e.entity_id] = dp;
+                        }
                         if (e.device_id && newDevicesCache[e.device_id]) {
                             newDevicesCache[e.device_id].entityIds.push(e.entity_id);
                             newEntityToDeviceCache[e.entity_id] = e.device_id;
+                            return;
                         }
+
+                        if (!newDevicesCache[root.ungroupedDeviceId]) {
+                            newDevicesCache[root.ungroupedDeviceId] = {
+                                name: I18n.tr("Ungrouped", "Device group for entities with no device"),
+                                entityIds: []
+                            };
+                        }
+                        newDevicesCache[root.ungroupedDeviceId].entityIds.push(e.entity_id);
+                        newEntityToDeviceCache[e.entity_id] = root.ungroupedDeviceId;
                     });
 
                     devicesCache = newDevicesCache;
                     entityToDeviceCache = newEntityToDeviceCache;
                     entityRegistryCache = newEntityRegistryCache;
+                    entityPrecisionCache = newEntityPrecisionCache;
 
                     for (let i = 0; i < cachedAllEntities.length; i++) {
                         const cachedEntity = cachedAllEntities[i];

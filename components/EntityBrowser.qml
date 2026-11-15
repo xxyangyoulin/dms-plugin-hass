@@ -461,7 +461,7 @@ Rectangle {
                                                 const translationVersion = HomeAssistantService.translationsVersion;
                                                 const val = modelData.state || "";
                                                 const unit = modelData.unitOfMeasurement || "";
-                                                return HomeAssistantService.formatEntityState(modelData.domain || "", val, unit);
+                                                return HomeAssistantService.formatEntityState(modelData.domain || "", val, unit, modelData.entityId);
                                             }
                                             font.pixelSize: Theme.fontSizeSmall - 1
                                             color: entityRowCard.isMonitored ? Theme.primary : Theme.surfaceVariantText
