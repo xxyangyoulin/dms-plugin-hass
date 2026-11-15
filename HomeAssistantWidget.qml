@@ -204,10 +204,14 @@ PluginComponent {
 
     onPluginDataChanged: {
         syncPinnedEntitiesFromStorage();
+        visibilityRules = loadPersistentUiValue("entityVisibility", ({}));
         loadDeviceExtraEntities();
     }
 
-    onPluginServiceChanged: loadDeviceExtraEntities();
+    onPluginServiceChanged: {
+        visibilityRules = loadPersistentUiValue("entityVisibility", ({}));
+        loadDeviceExtraEntities();
+    }
 
     Component.onCompleted: {
         syncPinnedEntitiesFromStorage();
