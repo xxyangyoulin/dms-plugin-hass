@@ -129,7 +129,7 @@ Pane {
             Layout.fillWidth: true
             StyledText {
                 Layout.fillWidth: true
-                text: root.tr("Edit combination")
+                text: root.tr("Edit scene button")
                 font.pixelSize: Theme.fontSizeMedium
                 font.weight: Font.Medium
                 color: Theme.surfaceText

@@ -91,7 +91,7 @@ Column {
             maximumWidth: shortcutsGrid.width
             buttonHeight: 40
             variant: "tonal"
-            text: I18n.trFor("homeAssistantMonitor", "+ Add combination")
+            text: I18n.trFor("homeAssistantMonitor", "+ Add scene button")
             onClicked: shortcutsGridRoot.requestEditCombination("")
         }
     }

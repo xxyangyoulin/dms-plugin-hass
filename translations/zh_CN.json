@@ -383,11 +383,11 @@
   "items": {
     "items": "项"
   },
-  "+ Add combination": {
-    "+ Add combination": "+ 添加组合按钮"
+  "+ Add scene button": {
+    "+ Add scene button": "+ 添加场景按钮"
   },
-  "Edit combination": {
-    "Edit combination": "编辑组合按钮"
+  "Edit scene button": {
+    "Edit scene button": "编辑场景按钮"
   },
   "Button name": {
     "Button name": "按钮名称"
