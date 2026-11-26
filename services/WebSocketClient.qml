@@ -51,7 +51,14 @@ Item {
 
         _reopenOnClosed = true;
         _internalActive = false;
-        if (socket.status === WebSocket.Closed)
+        // A failed connection (HA restarting, network or VPN change, refused
+        // port) ends in Error, not Closed: QtWebSockets emits Closed first and
+        // Error last, and deactivating an errored socket never emits Closed
+        // again. Waiting only for Closed left _reopenOnClosed stuck at true, so
+        // every later reconnect() returned early and the widget stayed
+        // "Disconnected" until the shell restarted. Both states mean the
+        // socket is already torn down, so reopening now is safe (see #19).
+        if (socket.status === WebSocket.Closed || socket.status === WebSocket.Error)
             _reopenIfPending();
     }
 
