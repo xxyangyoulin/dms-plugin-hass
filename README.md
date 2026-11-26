@@ -12,7 +12,7 @@ Monitor and control your Home Assistant entities directly from your status bar.
 - **Sensor History**: View 24-hour history with time-proportional spacing, hover timestamps, and loading and empty states.
 - **Climate Controls**: Use native on/off actions while showing the target temperature at a glance.
 - **Quick Actions**: Pin entities to the status bar or create top-level shortcut buttons.
-- **Combination Buttons**: In edit mode, add a named button with fixed actions for multiple entities. Add each property separately (for example fan speed, climate mode, temperature, and fan mode); click an action to edit it. Saving does not control devices. Commands run in order, report failures, and leave unspecified properties unchanged. Configure power or HVAC mode explicitly when needed.
+- **Scene Buttons**: Create custom buttons to apply preset settings to multiple entities with one click.
 - **Editing Mode**: Sort, rename (double-click), and manage shortcuts easily, with an optional two-column layout.
 - **Browser**: Built-in entity browser to find and add devices.
 
