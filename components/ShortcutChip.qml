@@ -123,7 +123,7 @@ StyledRect {
         EditActionButton {
             width: 18; height: 18
             iconName: "chevron_left"
-            tooltipText: I18n.tr("Move left", "Edit action tooltip")
+            tooltipText: I18n.trFor("homeAssistantMonitor", "Move left", "Edit action tooltip")
             iconSize: 12
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
@@ -133,7 +133,7 @@ StyledRect {
         EditActionButton {
             width: 18; height: 18
             iconName: "chevron_right"
-            tooltipText: I18n.tr("Move right", "Edit action tooltip")
+            tooltipText: I18n.trFor("homeAssistantMonitor", "Move right", "Edit action tooltip")
             iconSize: 12
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
@@ -143,7 +143,7 @@ StyledRect {
         EditActionButton {
             width: 18; height: 18
             iconName: "close"
-            tooltipText: I18n.tr("Remove shortcut", "Edit action tooltip")
+            tooltipText: I18n.trFor("homeAssistantMonitor", "Remove shortcut", "Edit action tooltip")
             iconSize: 11
             iconColor: Theme.primaryText
             backgroundColor: Theme.error || "transparent"
@@ -196,7 +196,7 @@ StyledRect {
                 }
 
                 triggerAnim.start();
-                ToastService.showInfo(I18n.tr("Triggered", "Action notification") + " " + shortcutData.name);
+                ToastService.showInfo(I18n.trFor("homeAssistantMonitor", "Triggered", "Action notification") + " " + shortcutData.name);
             }
         }
 

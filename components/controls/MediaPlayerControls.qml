@@ -60,7 +60,7 @@ Column {
             
             StyledText {
                 Layout.fillWidth: true
-                text: root.getVal("media_title", root.getVal("source", I18n.tr("Unknown Title", "Media player placeholder")))
+                text: root.getVal("media_title", root.getVal("source", I18n.trFor("homeAssistantMonitor", "Unknown Title", "Media player placeholder")))
                 font.pixelSize: Theme.fontSizeMedium
                 font.weight: Font.Bold
                 color: Theme.surfaceText
@@ -207,7 +207,7 @@ Column {
     // Offline / Unavailable Message
     StyledText {
         width: parent.width
-        text: I18n.tr("Device Unavailable", "Status message")
+        text: I18n.trFor("homeAssistantMonitor", "Device Unavailable", "Status message")
         font.pixelSize: Theme.fontSizeMedium
         color: Theme.surfaceVariantText
         horizontalAlignment: Text.AlignHCenter
@@ -224,7 +224,7 @@ Column {
         }
 
         StyledText {
-            text: HomeAssistantService.translateAttributeName("media_player", "source", I18n.tr("Source", "Control label"))
+            text: HomeAssistantService.translateAttributeName("media_player", "source", I18n.trFor("homeAssistantMonitor", "Source", "Control label"))
             font.pixelSize: Theme.fontSizeSmall
             color: Theme.surfaceVariantText
         }

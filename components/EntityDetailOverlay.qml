@@ -55,7 +55,7 @@ FocusScope {
         }
     }
     Accessible.role: Accessible.Dialog
-    Accessible.name: I18n.tr("Details")
+    Accessible.name: I18n.trFor("homeAssistantMonitor", "Details")
 
     function focusContent() {
         closeButton.forceActiveFocus();
@@ -173,7 +173,7 @@ FocusScope {
                 anchors.left: parent.left
                 anchors.leftMargin: Theme.spacingM
                 anchors.verticalCenter: parent.verticalCenter
-                text: I18n.tr("Details")
+                text: I18n.trFor("homeAssistantMonitor", "Details")
                 font.pixelSize: Theme.fontSizeMedium
                 font.weight: Font.Medium
                 color: Theme.surfaceText
@@ -186,7 +186,7 @@ FocusScope {
                 anchors.verticalCenter: parent.verticalCenter
                 width: 36
                 height: 36
-                Accessible.name: I18n.tr("Close")
+                Accessible.name: I18n.trFor("homeAssistantMonitor", "Close")
                 onClicked: root.requestClose()
                 HoverHandler {
                     cursorShape: Qt.PointingHandCursor

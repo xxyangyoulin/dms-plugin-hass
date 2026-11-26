@@ -26,7 +26,7 @@ Rectangle {
         }
 
         StyledText {
-            text: I18n.tr("Missing Dependency", "Error title")
+            text: I18n.trFor("homeAssistantMonitor", "Missing Dependency", "Error title")
             font.pixelSize: Theme.fontSizeLarge
             font.weight: Font.Bold
             color: Theme.error
@@ -34,7 +34,7 @@ Rectangle {
         }
 
         StyledText {
-            text: I18n.tr("Please install 'qt6-websockets' package and then RESTART DMS to use this plugin.", "Error description")
+            text: I18n.trFor("homeAssistantMonitor", "Please install 'qt6-websockets' package and then RESTART DMS to use this plugin.", "Error description")
             font.pixelSize: Theme.fontSizeMedium
             color: Theme.surfaceText
             Layout.alignment: Qt.AlignHCenter

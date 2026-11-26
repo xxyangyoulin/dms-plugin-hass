@@ -117,7 +117,7 @@ Rectangle {
 
                         Text {
                             anchors.fill: parent
-                            text: I18n.tr("Search entities...", "Entity browser search placeholder")
+                            text: I18n.trFor("homeAssistantMonitor", "Search entities...", "Entity browser search placeholder")
                             color: Theme.surfaceVariantText
                             font.pixelSize: Theme.fontSizeSmall + 1
                             verticalAlignment: Text.AlignVCenter
@@ -296,7 +296,7 @@ Rectangle {
                             StyledText {
                                 id: countLabel
                                 anchors.centerIn: parent
-                                text: modelData.entities.length + " " + I18n.tr("items", "Entity browser group count")
+                                text: modelData.entities.length + " " + I18n.trFor("homeAssistantMonitor", "items", "Entity browser group count")
                                 font.pixelSize: Theme.fontSizeSmall - 2
                                 font.weight: Font.Medium
                                 color: Theme.surfaceVariantText
@@ -423,7 +423,7 @@ Rectangle {
                                                     HomeAssistantService.removeShortcut(modelData.entityId);
                                                 } else {
                                                     HomeAssistantService.addShortcut(modelData);
-                                                    ToastService.showInfo(I18n.tr("Added to shortcuts", "Notification"));
+                                                    ToastService.showInfo(I18n.trFor("homeAssistantMonitor", "Added to shortcuts", "Notification"));
                                                 }
                                             }
                                         }

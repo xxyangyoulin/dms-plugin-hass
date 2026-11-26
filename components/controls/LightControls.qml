@@ -82,7 +82,7 @@ Column {
 
             StyledText {
                 visible: root.showSectionLabels
-                text: HomeAssistantService.translateAttributeName("light", "brightness", I18n.tr("Brightness", "Control label"))
+                text: HomeAssistantService.translateAttributeName("light", "brightness", I18n.trFor("homeAssistantMonitor", "Brightness", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -112,7 +112,7 @@ Column {
 
             StyledText {
                 visible: root.showSectionLabels
-                text: HomeAssistantService.translateAttributeName("light", "color_temp_kelvin", I18n.tr("Color Temperature", "Control label"))
+                text: HomeAssistantService.translateAttributeName("light", "color_temp_kelvin", I18n.trFor("homeAssistantMonitor", "Color Temperature", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -145,7 +145,7 @@ Column {
 
             StyledText {
                 visible: root.showSectionLabels
-                text: I18n.tr("Color", "Control label")
+                text: I18n.trFor("homeAssistantMonitor", "Color", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -188,7 +188,7 @@ Column {
 
             StyledText {
                 visible: root.showSectionLabels
-                text: HomeAssistantService.translateAttributeName("light", "effect", I18n.tr("Effect", "Control label"))
+                text: HomeAssistantService.translateAttributeName("light", "effect", I18n.trFor("homeAssistantMonitor", "Effect", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }

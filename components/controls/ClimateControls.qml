@@ -81,7 +81,7 @@ Column {
 
             StyledText {
                 visible: root.showSectionLabels
-                text: I18n.tr("Temperature Control", "Control label")
+                text: I18n.trFor("homeAssistantMonitor", "Temperature Control", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -127,7 +127,7 @@ Column {
 
                     StyledText {
                         visible: parent.parent.sectionData.currentTemperature !== undefined
-                        text: I18n.tr("Current:", "Label") + " " + parent.parent.sectionData.currentTemperature.toFixed(1) + parent.parent.sectionData.unit
+                        text: I18n.trFor("homeAssistantMonitor", "Current:", "Label") + " " + parent.parent.sectionData.currentTemperature.toFixed(1) + parent.parent.sectionData.unit
                         font.pixelSize: Theme.fontSizeSmall
                         color: Theme.surfaceVariantText
                         anchors.horizontalCenter: parent.horizontalCenter

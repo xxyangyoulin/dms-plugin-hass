@@ -40,12 +40,12 @@ Rectangle {
                 if (root.connectionMessage)
                     return root.connectionMessage;
                 if (root.connectionStatus === "connecting")
-                    return I18n.tr("Connecting to Home Assistant", "Connection banner");
+                    return I18n.trFor("homeAssistantMonitor", "Connecting to Home Assistant", "Connection banner");
                 if (root.connectionStatus === "degraded")
-                    return I18n.tr("Home Assistant connection is unstable", "Connection banner");
+                    return I18n.trFor("homeAssistantMonitor", "Home Assistant connection is unstable", "Connection banner");
                 if (root.connectionStatus === "auth_error")
-                    return I18n.tr("Home Assistant authentication failed", "Connection banner");
-                return I18n.tr("Home Assistant is offline", "Connection banner");
+                    return I18n.trFor("homeAssistantMonitor", "Home Assistant authentication failed", "Connection banner");
+                return I18n.trFor("homeAssistantMonitor", "Home Assistant is offline", "Connection banner");
             }
         }
     }

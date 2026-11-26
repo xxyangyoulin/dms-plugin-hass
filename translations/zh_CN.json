@@ -1,0 +1,386 @@
+{
+  "24h History": {
+    "24h History": "24 小时历史记录"
+  },
+  "A token file path is configured, so the direct token field is currently ignored.": {
+    "A token file path is configured, so the direct token field is currently ignored.": "已配置令牌文件路径，当前不会使用直接输入的令牌。"
+  },
+  "Absolute path to a file containing a long-lived access token. When set, this takes priority over the direct token field below.": {
+    "Absolute path to a file containing a long-lived access token. When set, this takes priority over the direct token field below.": "包含长期访问令牌的文件绝对路径。设置后优先使用该文件，而非下方直接输入的令牌。"
+  },
+  "Action sent, waiting for Home Assistant state sync": {
+    "Action sent, waiting for Home Assistant state sync": "操作已发送，等待 Home Assistant 同步状态"
+  },
+  "Active credential source: direct token": {
+    "Active credential source: direct token": "当前凭据来源：直接输入的令牌"
+  },
+  "Active credential source: token file": {
+    "Active credential source: token file": "当前凭据来源：令牌文件"
+  },
+  "Add a Home Assistant URL and either a token file path or a direct access token.": {
+    "Add a Home Assistant URL and either a token file path or a direct access token.": "请填写 Home Assistant 地址，并提供令牌文件路径或直接输入访问令牌。"
+  },
+  "Add device entity": {
+    "Add device entity": "添加设备实体"
+  },
+  "Added to shortcuts": {
+    "Added to shortcuts": "已添加到快捷操作"
+  },
+  "Allow entity cards to expose extra attributes in the expanded details view.": {
+    "Allow entity cards to expose extra attributes in the expanded details view.": "允许实体卡片在展开的详情视图中显示更多属性。"
+  },
+  "Always show on status bar": {
+    "Always show on status bar": "始终显示在状态栏"
+  },
+  "Authenticating and loading your monitored entities.": {
+    "Authenticating and loading your monitored entities.": "正在验证身份并加载监控的实体。"
+  },
+  "Authenticating with Home Assistant": {
+    "Authenticating with Home Assistant": "正在向 Home Assistant 验证身份"
+  },
+  "Authentication Failed": {
+    "Authentication Failed": "身份验证失败"
+  },
+  "Authentication failed": {
+    "Authentication failed": "身份验证失败"
+  },
+  "Base URL for your Home Assistant instance, for example http://homeassistant.local:8123.": {
+    "Base URL for your Home Assistant instance, for example http://homeassistant.local:8123.": "Home Assistant 实例的基础地址，例如 http://homeassistant.local:8123。"
+  },
+  "Brightness": {
+    "Brightness": "亮度"
+  },
+  "Cannot connect to Home Assistant": {
+    "Cannot connect to Home Assistant": "无法连接到 Home Assistant"
+  },
+  "Check the access token and confirm it still has permission to use the Home Assistant API.": {
+    "Check the access token and confirm it still has permission to use the Home Assistant API.": "请检查访问令牌，并确认它仍有使用 Home Assistant API 的权限。"
+  },
+  "Check the access token in plugin settings and retry the connection.": {
+    "Check the access token in plugin settings and retry the connection.": "请检查插件设置中的访问令牌，然后重试连接。"
+  },
+  "Check your Home Assistant URL and access token in the plugin settings.": {
+    "Check your Home Assistant URL and access token in the plugin settings.": "请检查插件设置中的 Home Assistant 地址和访问令牌。"
+  },
+  "Close": {
+    "Close": "关闭"
+  },
+  "Color": {
+    "Color": "颜色"
+  },
+  "Color Temperature": {
+    "Color Temperature": "色温"
+  },
+  "Configure Home Assistant URL and token": {
+    "Configure Home Assistant URL and token": "请配置 Home Assistant 地址和令牌"
+  },
+  "Connect DMS to Home Assistant, monitor a curated set of entities, and pin important states to the status bar.": {
+    "Connect DMS to Home Assistant, monitor a curated set of entities, and pin important states to the status bar.": "将 DMS 连接到 Home Assistant，监控选定实体，并将重要状态固定到状态栏。"
+  },
+  "Connected": {
+    "Connected": "已连接"
+  },
+  "Connected Entities": {
+    "Connected Entities": "关联实体"
+  },
+  "Connecting": {
+    "Connecting": "正在连接"
+  },
+  "Connecting to Home Assistant": {
+    "Connecting to Home Assistant": "正在连接 Home Assistant"
+  },
+  "Connection": {
+    "Connection": "连接"
+  },
+  "Connection Unstable": {
+    "Connection Unstable": "连接不稳定"
+  },
+  "Connection is unstable": {
+    "Connection is unstable": "连接不稳定"
+  },
+  "Current:": {
+    "Current:": "当前："
+  },
+  "Details": {
+    "Details": "详情"
+  },
+  "Device Unavailable": {
+    "Device Unavailable": "设备不可用"
+  },
+  "Disconnected from Home Assistant": {
+    "Disconnected from Home Assistant": "已断开与 Home Assistant 的连接"
+  },
+  "Display": {
+    "Display": "显示"
+  },
+  "Display inline control buttons for pinned entities in the status bar when the entity supports quick actions.": {
+    "Display inline control buttons for pinned entities in the status bar when the entity supports quick actions.": "实体支持快捷操作时，在状态栏中为固定的实体显示控制按钮。"
+  },
+  "Effect": {
+    "Effect": "效果"
+  },
+  "Expand the plugin popout and show the entity browser beside the monitored list while editing.": {
+    "Expand the plugin popout and show the entity browser beside the monitored list while editing.": "编辑时展开插件弹窗，在监控列表旁显示实体浏览器。"
+  },
+  "Failed": {
+    "Failed": "失败"
+  },
+  "Failed to fetch Home Assistant states": {
+    "Failed to fetch Home Assistant states": "获取 Home Assistant 状态失败"
+  },
+  "Failed to parse Home Assistant response": {
+    "Failed to parse Home Assistant response": "解析 Home Assistant 响应失败"
+  },
+  "Generate a token from Home Assistant Settings -> Profile -> Long-Lived Access Tokens. Leave this empty when using a token file path.": {
+    "Generate a token from Home Assistant Settings -> Profile -> Long-Lived Access Tokens. Leave this empty when using a token file path.": "前往 Home Assistant 设置 → 个人资料 → 长期访问令牌生成令牌。使用令牌文件路径时请留空。"
+  },
+  "Hide Details": {
+    "Hide Details": "隐藏详情"
+  },
+  "Hide addable entities": {
+    "Hide addable entities": "隐藏可添加的实体"
+  },
+  "Home Assistant": {
+    "Home Assistant": "Home Assistant"
+  },
+  "Home Assistant Monitor": {
+    "Home Assistant Monitor": "Home Assistant 监控"
+  },
+  "Home Assistant URL": {
+    "Home Assistant URL": "Home Assistant 地址"
+  },
+  "Home Assistant authentication failed": {
+    "Home Assistant authentication failed": "Home Assistant 身份验证失败"
+  },
+  "Home Assistant connection degraded": {
+    "Home Assistant connection degraded": "Home Assistant 连接质量下降"
+  },
+  "Home Assistant connection is slow": {
+    "Home Assistant connection is slow": "Home Assistant 连接缓慢"
+  },
+  "Home Assistant connection is unstable": {
+    "Home Assistant connection is unstable": "Home Assistant 连接不稳定"
+  },
+  "Home Assistant is not configured": {
+    "Home Assistant is not configured": "尚未配置 Home Assistant"
+  },
+  "Home Assistant is offline": {
+    "Home Assistant is offline": "Home Assistant 已离线"
+  },
+  "Home Assistant ping timed out": {
+    "Home Assistant ping timed out": "Home Assistant 心跳超时"
+  },
+  "Home Assistant unavailable": {
+    "Home Assistant unavailable": "Home Assistant 不可用"
+  },
+  "If the server is online, reopen the plugin after updating the connection settings.": {
+    "If the server is online, reopen the plugin after updating the connection settings.": "如果服务器在线，请更新连接设置后重新打开插件。"
+  },
+  "If this keeps happening, verify server load and WebSocket availability.": {
+    "If this keeps happening, verify server load and WebSocket availability.": "如果问题持续出现，请检查服务器负载和 WebSocket 是否可用。"
+  },
+  "Loading history…": {
+    "Loading history…": "正在加载历史记录…"
+  },
+  "Long-Lived Access Token": {
+    "Long-Lived Access Token": "长期访问令牌"
+  },
+  "Missing Dependency": {
+    "Missing Dependency": "缺少依赖"
+  },
+  "Move down": {
+    "Move down": "下移"
+  },
+  "Move left": {
+    "Move left": "左移"
+  },
+  "Move right": {
+    "Move right": "右移"
+  },
+  "Move to top": {
+    "Move to top": "移到顶部"
+  },
+  "Move up": {
+    "Move up": "上移"
+  },
+  "No connected entities found for this device": {
+    "No connected entities found for this device": "未找到此设备的关联实体"
+  },
+  "No credential source configured yet": {
+    "No credential source configured yet": "尚未配置凭据来源"
+  },
+  "No history available": {
+    "No history available": "没有可用的历史记录"
+  },
+  "No monitored entities yet": {
+    "No monitored entities yet": "尚未监控任何实体"
+  },
+  "Not Configured": {
+    "Not Configured": "未配置"
+  },
+  "Off": {
+    "Off": "关闭"
+  },
+  "Offline": {
+    "Offline": "离线"
+  },
+  "On": {
+    "On": "开启"
+  },
+  "Open the browser panel and add the entities you want on this dashboard.": {
+    "Open the browser panel and add the entities you want on this dashboard.": "打开实体浏览器，将需要的实体添加到此面板。"
+  },
+  "Options": {
+    "Options": "选项"
+  },
+  "Oscillation": {
+    "Oscillation": "摆动"
+  },
+  "Pin frequently used entities to the status bar after adding them.": {
+    "Pin frequently used entities to the status bar after adding them.": "添加实体后，可将常用实体固定到状态栏。"
+  },
+  "Pin to status bar": {
+    "Pin to status bar": "固定到状态栏"
+  },
+  "Please install 'qt6-websockets' package and then RESTART DMS to use this plugin.": {
+    "Please install 'qt6-websockets' package and then RESTART DMS to use this plugin.": "请安装 qt6-websockets 软件包，然后重启 DMS 以使用此插件。"
+  },
+  "Position": {
+    "Position": "位置"
+  },
+  "Press": {
+    "Press": "按下"
+  },
+  "Refreshing Home Assistant entities...": {
+    "Refreshing Home Assistant entities...": "正在刷新 Home Assistant 实体…"
+  },
+  "Remove from monitored entities": {
+    "Remove from monitored entities": "从监控实体中移除"
+  },
+  "Remove shortcut": {
+    "Remove shortcut": "移除快捷操作"
+  },
+  "Reset": {
+    "Reset": "重置"
+  },
+  "Review your URL and access token if the dashboard stays offline.": {
+    "Review your URL and access token if the dashboard stays offline.": "如果面板持续离线，请检查地址和访问令牌。"
+  },
+  "Search entities...": {
+    "Search entities...": "搜索实体…"
+  },
+  "Search icons...": {
+    "Search icons...": "搜索图标…"
+  },
+  "Select": {
+    "Select": "选择"
+  },
+  "Select Icon": {
+    "Select Icon": "选择图标"
+  },
+  "Service Controls": {
+    "Service Controls": "服务控制"
+  },
+  "Service call failed": {
+    "Service call failed": "服务调用失败"
+  },
+  "Show Detailed Attributes": {
+    "Show Detailed Attributes": "显示详细属性"
+  },
+  "Show Details": {
+    "Show Details": "显示详情"
+  },
+  "Show History Preview": {
+    "Show History Preview": "显示历史记录预览"
+  },
+  "Show Status Bar Buttons": {
+    "Show Status Bar Buttons": "显示状态栏按钮"
+  },
+  "Show a 24-hour trend line in the background of numeric sensor cards.": {
+    "Show a 24-hour trend line in the background of numeric sensor cards.": "在数值传感器卡片背景中显示 24 小时趋势线。"
+  },
+  "Show on status bar only when active": {
+    "Show on status bar only when active": "仅在活动时显示在状态栏"
+  },
+  "Source": {
+    "Source": "来源"
+  },
+  "Speed": {
+    "Speed": "速度"
+  },
+  "Status": {
+    "Status": "状态"
+  },
+  "Temperature Control": {
+    "Temperature Control": "温度控制"
+  },
+  "The direct token is used only when no token file path is configured.": {
+    "The direct token is used only when no token file path is configured.": "仅在未配置令牌文件路径时使用直接输入的令牌。"
+  },
+  "The last action did not complete": {
+    "The last action did not complete": "上次操作未完成"
+  },
+  "The plugin is authenticating and loading the initial entity state.": {
+    "The plugin is authenticating and loading the initial entity state.": "插件正在验证身份并加载初始实体状态。"
+  },
+  "The plugin is connected and entity updates should arrive normally.": {
+    "The plugin is connected and entity updates should arrive normally.": "插件已连接，实体状态应会正常更新。"
+  },
+  "The server is reachable, but requests are timing out or reconnecting.": {
+    "The server is reachable, but requests are timing out or reconnecting.": "服务器可访问，但请求超时或正在重新连接。"
+  },
+  "The server is reachable, but syncs are taking longer than expected.": {
+    "The server is reachable, but syncs are taking longer than expected.": "服务器可访问，但同步耗时超出预期。"
+  },
+  "The token may have expired or lost the required permissions.": {
+    "The token may have expired or lost the required permissions.": "令牌可能已过期或失去所需权限。"
+  },
+  "This panel fills automatically once the first sync completes.": {
+    "This panel fills automatically once the first sync completes.": "首次同步完成后，此面板会自动显示内容。"
+  },
+  "Token File Path": {
+    "Token File Path": "令牌文件路径"
+  },
+  "Triggered": {
+    "Triggered": "已触发"
+  },
+  "Two-Column Edit Mode": {
+    "Two-Column Edit Mode": "双栏编辑模式"
+  },
+  "Unavailable": {
+    "Unavailable": "不可用"
+  },
+  "Ungrouped": {
+    "Ungrouped": "未分组"
+  },
+  "Unknown": {
+    "Unknown": "未知"
+  },
+  "Unknown Title": {
+    "Unknown Title": "未知标题"
+  },
+  "Unpin from status bar": {
+    "Unpin from status bar": "从状态栏取消固定"
+  },
+  "Update the token in settings to restore entity updates.": {
+    "Update the token in settings to restore entity updates.": "请在设置中更新令牌，以恢复实体状态更新。"
+  },
+  "Using REST fallback": {
+    "Using REST fallback": "正在使用 REST 备用连接"
+  },
+  "Value": {
+    "Value": "数值"
+  },
+  "Verify the server URL, token, and network reachability.": {
+    "Verify the server URL, token, and network reachability.": "请确认服务器地址、令牌和网络连接正常。"
+  },
+  "Waiting for Home Assistant to complete authentication and return the initial entity list.": {
+    "Waiting for Home Assistant to complete authentication and return the initial entity list.": "正在等待 Home Assistant 完成身份验证并返回初始实体列表。"
+  },
+  "WebSocket error": {
+    "WebSocket error": "WebSocket 错误"
+  },
+  "items": {
+    "items": "项"
+  }
+}

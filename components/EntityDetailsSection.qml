@@ -40,8 +40,8 @@ Column {
 
             StyledText {
                 text: root.detailsExpanded
-                    ? I18n.tr("Hide Details", "Entity card hide details button")
-                    : I18n.tr("Show Details", "Entity card show details button")
+                    ? I18n.trFor("homeAssistantMonitor", "Hide Details", "Entity card hide details button")
+                    : I18n.trFor("homeAssistantMonitor", "Show Details", "Entity card show details button")
                 font.pixelSize: Theme.fontSizeSmall
                 font.weight: Font.Medium
                 color: root.detailsExpanded ? Theme.primary : Theme.surfaceText

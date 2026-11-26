@@ -24,34 +24,34 @@ Column {
         return "error";
     }
     readonly property string titleText: {
-        if (haAvailable && entityCount === 0) return I18n.tr("No monitored entities yet", "Home Assistant empty state title");
-        if (connectionStatus === "auth_error") return I18n.tr("Authentication failed", "Home Assistant auth error");
-        if (connectionStatus === "connecting") return I18n.tr("Connecting to Home Assistant", "Home Assistant connecting state");
-        if (connectionStatus === "degraded") return I18n.tr("Connection is unstable", "Home Assistant degraded state");
-        return I18n.tr("Cannot connect to Home Assistant", "Home Assistant connection error");
+        if (haAvailable && entityCount === 0) return I18n.trFor("homeAssistantMonitor", "No monitored entities yet", "Home Assistant empty state title");
+        if (connectionStatus === "auth_error") return I18n.trFor("homeAssistantMonitor", "Authentication failed", "Home Assistant auth error");
+        if (connectionStatus === "connecting") return I18n.trFor("homeAssistantMonitor", "Connecting to Home Assistant", "Home Assistant connecting state");
+        if (connectionStatus === "degraded") return I18n.trFor("homeAssistantMonitor", "Connection is unstable", "Home Assistant degraded state");
+        return I18n.trFor("homeAssistantMonitor", "Cannot connect to Home Assistant", "Home Assistant connection error");
     }
     readonly property string bodyText: {
         if (haAvailable && entityCount === 0) {
-            return I18n.tr("Open the browser panel and add the entities you want on this dashboard.", "Home Assistant empty state hint");
+            return I18n.trFor("homeAssistantMonitor", "Open the browser panel and add the entities you want on this dashboard.", "Home Assistant empty state hint");
         }
         if (connectionMessage) return connectionMessage;
         if (connectionStatus === "auth_error") {
-            return I18n.tr("Check the access token in plugin settings and retry the connection.", "Home Assistant auth error hint");
+            return I18n.trFor("homeAssistantMonitor", "Check the access token in plugin settings and retry the connection.", "Home Assistant auth error hint");
         }
         if (connectionStatus === "connecting") {
-            return I18n.tr("Waiting for Home Assistant to complete authentication and return the initial entity list.", "Home Assistant connecting hint");
+            return I18n.trFor("homeAssistantMonitor", "Waiting for Home Assistant to complete authentication and return the initial entity list.", "Home Assistant connecting hint");
         }
         if (connectionStatus === "degraded") {
-            return I18n.tr("The server is reachable, but requests are timing out or reconnecting.", "Home Assistant degraded hint");
+            return I18n.trFor("homeAssistantMonitor", "The server is reachable, but requests are timing out or reconnecting.", "Home Assistant degraded hint");
         }
-        return I18n.tr("Check your Home Assistant URL and access token in the plugin settings.", "Home Assistant connection error hint");
+        return I18n.trFor("homeAssistantMonitor", "Check your Home Assistant URL and access token in the plugin settings.", "Home Assistant connection error hint");
     }
     readonly property string supportText: {
-        if (haAvailable && entityCount === 0) return I18n.tr("Pin frequently used entities to the status bar after adding them.", "Home Assistant empty state support");
-        if (connectionStatus === "auth_error") return I18n.tr("The token may have expired or lost the required permissions.", "Home Assistant auth support");
-        if (connectionStatus === "connecting") return I18n.tr("This panel fills automatically once the first sync completes.", "Home Assistant connecting support");
-        if (connectionStatus === "degraded") return I18n.tr("If this keeps happening, verify server load and WebSocket availability.", "Home Assistant degraded support");
-        return I18n.tr("If the server is online, reopen the plugin after updating the connection settings.", "Home Assistant connection support");
+        if (haAvailable && entityCount === 0) return I18n.trFor("homeAssistantMonitor", "Pin frequently used entities to the status bar after adding them.", "Home Assistant empty state support");
+        if (connectionStatus === "auth_error") return I18n.trFor("homeAssistantMonitor", "The token may have expired or lost the required permissions.", "Home Assistant auth support");
+        if (connectionStatus === "connecting") return I18n.trFor("homeAssistantMonitor", "This panel fills automatically once the first sync completes.", "Home Assistant connecting support");
+        if (connectionStatus === "degraded") return I18n.trFor("homeAssistantMonitor", "If this keeps happening, verify server load and WebSocket availability.", "Home Assistant degraded support");
+        return I18n.trFor("homeAssistantMonitor", "If the server is online, reopen the plugin after updating the connection settings.", "Home Assistant connection support");
     }
 
     spacing: Theme.spacingL

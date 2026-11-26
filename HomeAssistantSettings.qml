@@ -13,8 +13,7 @@ PluginSettings {
     property string tokenValue: ""
     property bool tokenLoaded: false
 
-    readonly property bool hasUrl: (pluginData.hassUrl || "").trim().length > 0
-    readonly property bool hasTokenFile: (pluginData.hassTokenPath || "").trim().length > 0
+    readonly property bool hasTokenFile: HomeAssistantService.hassTokenPath.trim().length > 0
     readonly property bool hasDirectToken: tokenValue.trim().length > 0
     readonly property bool isConfigured: HomeAssistantService.isConfigured
     readonly property string resolvedStatus: {
@@ -55,36 +54,36 @@ PluginSettings {
     readonly property string statusTitle: {
         switch (resolvedStatus) {
         case "online":
-            return I18n.tr("Connected", "Home Assistant settings status");
+            return I18n.trFor("homeAssistantMonitor", "Connected", "Home Assistant settings status");
         case "connecting":
-            return I18n.tr("Connecting", "Home Assistant settings status");
+            return I18n.trFor("homeAssistantMonitor", "Connecting", "Home Assistant settings status");
         case "degraded":
-            return I18n.tr("Connection Unstable", "Home Assistant settings status");
+            return I18n.trFor("homeAssistantMonitor", "Connection Unstable", "Home Assistant settings status");
         case "auth_error":
-            return I18n.tr("Authentication Failed", "Home Assistant settings status");
+            return I18n.trFor("homeAssistantMonitor", "Authentication Failed", "Home Assistant settings status");
         case "offline":
-            return I18n.tr("Offline", "Home Assistant settings status");
+            return I18n.trFor("homeAssistantMonitor", "Offline", "Home Assistant settings status");
         default:
-            return I18n.tr("Not Configured", "Home Assistant settings status");
+            return I18n.trFor("homeAssistantMonitor", "Not Configured", "Home Assistant settings status");
         }
     }
     readonly property string statusBody: {
         if (!isConfigured) {
-            return I18n.tr("Add a Home Assistant URL and either a token file path or a direct access token.", "Home Assistant settings status hint");
+            return I18n.trFor("homeAssistantMonitor", "Add a Home Assistant URL and either a token file path or a direct access token.", "Home Assistant settings status hint");
         }
         if (HomeAssistantService.connectionMessage)
             return HomeAssistantService.connectionMessage;
         switch (resolvedStatus) {
         case "online":
-            return I18n.tr("The plugin is connected and entity updates should arrive normally.", "Home Assistant settings connected hint");
+            return I18n.trFor("homeAssistantMonitor", "The plugin is connected and entity updates should arrive normally.", "Home Assistant settings connected hint");
         case "connecting":
-            return I18n.tr("The plugin is authenticating and loading the initial entity state.", "Home Assistant settings connecting hint");
+            return I18n.trFor("homeAssistantMonitor", "The plugin is authenticating and loading the initial entity state.", "Home Assistant settings connecting hint");
         case "degraded":
-            return I18n.tr("The server is reachable, but requests are timing out or reconnecting.", "Home Assistant settings degraded hint");
+            return I18n.trFor("homeAssistantMonitor", "The server is reachable, but requests are timing out or reconnecting.", "Home Assistant settings degraded hint");
         case "auth_error":
-            return I18n.tr("Check the access token and confirm it still has permission to use the Home Assistant API.", "Home Assistant settings auth hint");
+            return I18n.trFor("homeAssistantMonitor", "Check the access token and confirm it still has permission to use the Home Assistant API.", "Home Assistant settings auth hint");
         default:
-            return I18n.tr("Verify the server URL, token, and network reachability.", "Home Assistant settings offline hint");
+            return I18n.trFor("homeAssistantMonitor", "Verify the server URL, token, and network reachability.", "Home Assistant settings offline hint");
         }
     }
 
@@ -105,14 +104,14 @@ PluginSettings {
     onPluginServiceChanged: Qt.callLater(loadTokenValue)
 
     StyledText {
-        text: I18n.tr("Home Assistant Monitor", "Home Assistant settings title")
+        text: I18n.trFor("homeAssistantMonitor", "Home Assistant Monitor", "Home Assistant settings title")
         font.pixelSize: Theme.fontSizeLarge
         font.weight: Font.Bold
         color: Theme.surfaceText
     }
 
     StyledText {
-        text: I18n.tr("Connect DMS to Home Assistant, monitor a curated set of entities, and pin important states to the status bar.", "Home Assistant settings summary")
+        text: I18n.trFor("homeAssistantMonitor", "Connect DMS to Home Assistant, monitor a curated set of entities, and pin important states to the status bar.", "Home Assistant settings summary")
         font.pixelSize: Theme.fontSizeSmall
         color: Theme.surfaceVariantText
         width: parent.width
@@ -126,7 +125,7 @@ PluginSettings {
     }
 
     StyledText {
-        text: I18n.tr("Connection", "Home Assistant settings section")
+        text: I18n.trFor("homeAssistantMonitor", "Connection", "Home Assistant settings section")
         font.pixelSize: Theme.fontSizeMedium
         font.weight: Font.DemiBold
         color: Theme.surfaceText
@@ -134,16 +133,16 @@ PluginSettings {
 
     StringSetting {
         settingKey: "hassUrl"
-        label: I18n.tr("Home Assistant URL", "Home Assistant URL label")
-        description: I18n.tr("Base URL for your Home Assistant instance, for example http://homeassistant.local:8123.", "Home Assistant URL description")
+        label: I18n.trFor("homeAssistantMonitor", "Home Assistant URL", "Home Assistant URL label")
+        description: I18n.trFor("homeAssistantMonitor", "Base URL for your Home Assistant instance, for example http://homeassistant.local:8123.", "Home Assistant URL description")
         defaultValue: "http://homeassistant.local:8123"
         placeholder: "http://homeassistant.local:8123"
     }
 
     StringSetting {
         settingKey: "hassTokenPath"
-        label: I18n.tr("Token File Path", "Home Assistant token path label")
-        description: I18n.tr("Absolute path to a file containing a long-lived access token. When set, this takes priority over the direct token field below.", "Home Assistant token path description")
+        label: I18n.trFor("homeAssistantMonitor", "Token File Path", "Home Assistant token path label")
+        description: I18n.trFor("homeAssistantMonitor", "Absolute path to a file containing a long-lived access token. When set, this takes priority over the direct token field below.", "Home Assistant token path description")
         defaultValue: ""
         placeholder: "/run/secrets/hass_token"
     }
@@ -153,14 +152,14 @@ PluginSettings {
         spacing: Theme.spacingS
 
         StyledText {
-            text: I18n.tr("Long-Lived Access Token", "Home Assistant token label")
+            text: I18n.trFor("homeAssistantMonitor", "Long-Lived Access Token", "Home Assistant token label")
             font.pixelSize: Theme.fontSizeMedium
             font.weight: Font.Medium
             color: Theme.surfaceText
         }
 
         StyledText {
-            text: I18n.tr("Generate a token from Home Assistant Settings -> Profile -> Long-Lived Access Tokens. Leave this empty when using a token file path.", "Home Assistant token help text")
+            text: I18n.trFor("homeAssistantMonitor", "Generate a token from Home Assistant Settings -> Profile -> Long-Lived Access Tokens. Leave this empty when using a token file path.", "Home Assistant token help text")
             font.pixelSize: Theme.fontSizeSmall
             color: Theme.surfaceVariantText
             width: parent.width
@@ -186,8 +185,8 @@ PluginSettings {
 
         StyledText {
             text: root.hasTokenFile
-                ? I18n.tr("A token file path is configured, so the direct token field is currently ignored.", "Home Assistant token precedence hint")
-                : I18n.tr("The direct token is used only when no token file path is configured.", "Home Assistant token precedence hint")
+                ? I18n.trFor("homeAssistantMonitor", "A token file path is configured, so the direct token field is currently ignored.", "Home Assistant token precedence hint")
+                : I18n.trFor("homeAssistantMonitor", "The direct token is used only when no token file path is configured.", "Home Assistant token precedence hint")
             font.pixelSize: Theme.fontSizeSmall
             color: Theme.surfaceVariantText
             width: parent.width
@@ -202,7 +201,7 @@ PluginSettings {
     }
 
     StyledText {
-        text: I18n.tr("Status", "Home Assistant settings section")
+        text: I18n.trFor("homeAssistantMonitor", "Status", "Home Assistant settings section")
         font.pixelSize: Theme.fontSizeMedium
         font.weight: Font.DemiBold
         color: Theme.surfaceText
@@ -251,10 +250,10 @@ PluginSettings {
 
             StyledText {
                 text: root.hasTokenFile
-                    ? I18n.tr("Active credential source: token file", "Home Assistant settings credential source")
+                    ? I18n.trFor("homeAssistantMonitor", "Active credential source: token file", "Home Assistant settings credential source")
                     : (root.hasDirectToken
-                        ? I18n.tr("Active credential source: direct token", "Home Assistant settings credential source")
-                        : I18n.tr("No credential source configured yet", "Home Assistant settings credential source"))
+                        ? I18n.trFor("homeAssistantMonitor", "Active credential source: direct token", "Home Assistant settings credential source")
+                        : I18n.trFor("homeAssistantMonitor", "No credential source configured yet", "Home Assistant settings credential source"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -268,7 +267,7 @@ PluginSettings {
     }
 
     StyledText {
-        text: I18n.tr("Display", "Home Assistant settings section")
+        text: I18n.trFor("homeAssistantMonitor", "Display", "Home Assistant settings section")
         font.pixelSize: Theme.fontSizeMedium
         font.weight: Font.DemiBold
         color: Theme.surfaceText
@@ -276,29 +275,29 @@ PluginSettings {
 
     ToggleSetting {
         settingKey: "showAttributes"
-        label: I18n.tr("Show Detailed Attributes", "Home Assistant show attributes setting")
-        description: I18n.tr("Allow entity cards to expose extra attributes in the expanded details view.", "Home Assistant show attributes description")
+        label: I18n.trFor("homeAssistantMonitor", "Show Detailed Attributes", "Home Assistant show attributes setting")
+        description: I18n.trFor("homeAssistantMonitor", "Allow entity cards to expose extra attributes in the expanded details view.", "Home Assistant show attributes description")
         defaultValue: false
     }
 
     ToggleSetting {
         settingKey: "showHistoryPreview"
-        label: I18n.tr("Show History Preview", "Home Assistant history preview setting")
-        description: I18n.tr("Show a 24-hour trend line in the background of numeric sensor cards.", "Home Assistant history preview description")
+        label: I18n.trFor("homeAssistantMonitor", "Show History Preview", "Home Assistant history preview setting")
+        description: I18n.trFor("homeAssistantMonitor", "Show a 24-hour trend line in the background of numeric sensor cards.", "Home Assistant history preview description")
         defaultValue: true
     }
 
     ToggleSetting {
         settingKey: "editModeTwoColumns"
-        label: I18n.tr("Two-Column Edit Mode", "Home Assistant edit layout setting")
-        description: I18n.tr("Expand the plugin popout and show the entity browser beside the monitored list while editing.", "Home Assistant edit layout description")
+        label: I18n.trFor("homeAssistantMonitor", "Two-Column Edit Mode", "Home Assistant edit layout setting")
+        description: I18n.trFor("homeAssistantMonitor", "Expand the plugin popout and show the entity browser beside the monitored list while editing.", "Home Assistant edit layout description")
         defaultValue: true
     }
 
     ToggleSetting {
         settingKey: "showButtonsOnStatusBar"
-        label: I18n.tr("Show Status Bar Buttons", "Home Assistant status bar buttons setting")
-        description: I18n.tr("Display inline control buttons for pinned entities in the status bar when the entity supports quick actions.", "Home Assistant status bar buttons description")
+        label: I18n.trFor("homeAssistantMonitor", "Show Status Bar Buttons", "Home Assistant status bar buttons setting")
+        description: I18n.trFor("homeAssistantMonitor", "Display inline control buttons for pinned entities in the status bar when the entity supports quick actions.", "Home Assistant status bar buttons description")
         defaultValue: true
     }
 }

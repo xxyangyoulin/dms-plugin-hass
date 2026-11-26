@@ -78,7 +78,7 @@ Rectangle {
                 }
 
                 StyledText {
-                    text: I18n.tr("Select Icon", "Icon picker title")
+                    text: I18n.trFor("homeAssistantMonitor", "Select Icon", "Icon picker title")
                     font.pixelSize: Theme.fontSizeLarge
                     font.weight: Font.Medium
                     color: Theme.surfaceText
@@ -110,7 +110,7 @@ Rectangle {
                     }
 
                     StyledText {
-                        text: I18n.tr("Reset", "Icon picker reset button")
+                        text: I18n.trFor("homeAssistantMonitor", "Reset", "Icon picker reset button")
                         font.pixelSize: Theme.fontSizeSmall
                         color: Theme.surfaceVariantText
                         anchors.verticalCenter: parent.verticalCenter
@@ -164,7 +164,7 @@ Rectangle {
                     Text {
                         anchors.fill: parent
                         verticalAlignment: Text.AlignVCenter
-                        text: I18n.tr("Search icons...", "Icon picker search placeholder")
+                        text: I18n.trFor("homeAssistantMonitor", "Search icons...", "Icon picker search placeholder")
                         color: Theme.surfaceVariantText
                         font.pixelSize: Theme.fontSizeMedium
                         visible: !iconSearchInput.text && !iconSearchInput.activeFocus

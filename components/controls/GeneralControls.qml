@@ -47,10 +47,6 @@ Column {
 
             width: root.width
             property var section: modelData
-            onLoaded: {
-                if (item)
-                    item.section = section;
-            }
             sourceComponent: {
                 switch (section.type) {
                 case "number":
@@ -72,14 +68,14 @@ Column {
         id: numberSection
 
         Column {
-            property var section
+            readonly property var section: parent.section
 
             width: root.width
             spacing: Theme.spacingS
 
             StyledText {
                 visible: root.showSectionLabels
-                text: I18n.tr("Value", "Control label")
+                text: I18n.trFor("homeAssistantMonitor", "Value", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -106,14 +102,14 @@ Column {
         id: selectSection
 
         Column {
-            property var section
+            readonly property var section: parent.section
 
             width: root.width
             spacing: Theme.spacingS
 
             StyledText {
                 visible: root.showSectionLabels
-                text: I18n.tr("Select", "Control label")
+                text: I18n.trFor("homeAssistantMonitor", "Select", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -271,7 +267,7 @@ Column {
         id: buttonSection
 
         StyledRect {
-            property var section
+            readonly property var section: parent.section
 
             width: root.width
             height: 44
@@ -292,7 +288,7 @@ Column {
                 }
 
                 StyledText {
-                    text: I18n.tr(parent.sectionData.label, "Button action label")
+                    text: I18n.trFor("homeAssistantMonitor", parent.sectionData.label, "Button action label")
                     font.pixelSize: Theme.fontSizeMedium
                     font.weight: Font.Medium
                     color: Theme.primary
@@ -318,14 +314,15 @@ Column {
         id: optionsSection
 
         Column {
-            property var section
+            id: optionsColumn
+            readonly property var section: parent.section
 
             width: root.width
             spacing: Theme.spacingS
 
             StyledText {
                 visible: root.showSectionLabels
-                text: I18n.tr("Options", "Control label")
+                text: I18n.trFor("homeAssistantMonitor", "Options", "Control label")
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -335,10 +332,10 @@ Column {
                 spacing: 6
 
                 Repeater {
-                    model: parent.section.options
+                    model: optionsColumn.section.options
 
                     delegate: StyledRect {
-                        readonly property bool isSelected: section.value === modelData
+                        readonly property bool isSelected: optionsColumn.section.value === modelData
                         height: 30
                         width: Math.max(60, optionText.implicitWidth + 24)
                         radius: 15

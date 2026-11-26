@@ -255,7 +255,7 @@ Singleton {
         pingTimer.stop();
         reconnectTimer.stop();
         statesRetryTimer.stop();
-        setConnectionState("auth_error", message || I18n.tr("Authentication failed", "Home Assistant authentication error"));
+        setConnectionState("auth_error", message || I18n.trFor("homeAssistantMonitor", "Authentication failed", "Home Assistant authentication error"));
         PluginService.setGlobalVar(pluginId, "haAvailable", false);
     }
 
@@ -432,7 +432,7 @@ Singleton {
                     if (suppressReconnect) {
                         setConnectionState("auth_error", connectionMessage || wsLoader.item.errorString);
                     } else {
-                        setConnectionState("offline", wsLoader.item.errorString || I18n.tr("WebSocket error", "Home Assistant connection error"));
+                        setConnectionState("offline", wsLoader.item.errorString || I18n.trFor("homeAssistantMonitor", "WebSocket error", "Home Assistant connection error"));
                         if (!wsLoader.item.reconnectPending)
                             reconnectTimer.start();
                     }
@@ -444,9 +444,9 @@ Singleton {
                     PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
                     clearCallbacks("WebSocket Closed");
                     if (suppressReconnect) {
-                        setConnectionState("auth_error", connectionMessage || I18n.tr("Authentication failed", "Home Assistant authentication error"));
+                        setConnectionState("auth_error", connectionMessage || I18n.trFor("homeAssistantMonitor", "Authentication failed", "Home Assistant authentication error"));
                     } else {
-                        setConnectionState("offline", I18n.tr("Disconnected from Home Assistant", "Home Assistant connection error"));
+                        setConnectionState("offline", I18n.trFor("homeAssistantMonitor", "Disconnected from Home Assistant", "Home Assistant connection error"));
                         if (!wsLoader.item.reconnectPending)
                             reconnectTimer.start();
                     }
@@ -454,7 +454,7 @@ Singleton {
                     currentReconnectInterval = 5000;
                     haAvailable = false;
                     PluginService.setGlobalVar(pluginId, "haAvailable", false);
-                    setConnectionState("connecting", I18n.tr("Authenticating with Home Assistant", "Home Assistant connecting state"));
+                    setConnectionState("connecting", I18n.trFor("homeAssistantMonitor", "Authenticating with Home Assistant", "Home Assistant connecting state"));
                     reconnectTimer.stop();
                 }
             }
@@ -500,9 +500,9 @@ Singleton {
                         root.latency = Date.now() - root.lastPingTime;
                         PluginService.setGlobalVar(pluginId, "latency", root.latency);
                         setConnectionState(root.latency >= 1000 ? "degraded" : "online",
-                                           root.latency >= 1000 ? I18n.tr("Home Assistant connection is slow", "Home Assistant degraded connection") : "");
+                                           root.latency >= 1000 ? I18n.trFor("homeAssistantMonitor", "Home Assistant connection is slow", "Home Assistant degraded connection") : "");
                     } else if (response && response.success === false) {
-                        setConnectionState("degraded", I18n.tr("Home Assistant ping timed out", "Home Assistant degraded connection"));
+                        setConnectionState("degraded", I18n.trFor("homeAssistantMonitor", "Home Assistant ping timed out", "Home Assistant degraded connection"));
                         if (socket && socket.status === root.wsOpen && !root.suppressReconnect && !root.connectionResetQueued)
                             socket.reconnect();
                     }
@@ -709,6 +709,19 @@ Singleton {
         }
     }
 
+    Connections {
+        target: I18n
+
+        function onLocaleApplied() {
+            root.translationsCache = {};
+            root.translationDomainsLoaded = {};
+            root.translationDomainsLoading = {};
+            root.translationsVersion++;
+            root.translationsChanged();
+            root.fetchTranslations();
+        }
+    }
+
     property var delayedRefreshTimer: Timer {
         interval: 500
         running: false
@@ -744,8 +757,8 @@ Singleton {
     function initialize() {
         setConnectionState(isConfigured ? "connecting" : "offline",
                            isConfigured
-                               ? I18n.tr("Connecting to Home Assistant", "Home Assistant connecting state")
-                               : I18n.tr("Configure Home Assistant URL and token", "Home Assistant configuration required"));
+                               ? I18n.trFor("homeAssistantMonitor", "Connecting to Home Assistant", "Home Assistant connecting state")
+                               : I18n.trFor("homeAssistantMonitor", "Configure Home Assistant URL and token", "Home Assistant configuration required"));
         fetchServices();
         fetchDevices();
         refresh(); // Initial fetch via REST to get data immediately
@@ -792,7 +805,7 @@ Singleton {
 
     function handleWsMessage(data) {
         if (data.type === "auth_required") {
-            setConnectionState("connecting", I18n.tr("Authenticating with Home Assistant", "Home Assistant connecting state"));
+            setConnectionState("connecting", I18n.trFor("homeAssistantMonitor", "Authenticating with Home Assistant", "Home Assistant connecting state"));
             socket.sendTextMessage(JSON.stringify({
                 type: "auth",
                 access_token: root.hassToken
@@ -825,7 +838,7 @@ Singleton {
                         root.latency = Date.now() - root.lastPingTime;
                         PluginService.setGlobalVar(pluginId, "latency", root.latency);
                     } else if (response && response.success === false) {
-                        setConnectionState("degraded", I18n.tr("Home Assistant ping timed out", "Home Assistant degraded connection"));
+                        setConnectionState("degraded", I18n.trFor("homeAssistantMonitor", "Home Assistant ping timed out", "Home Assistant degraded connection"));
                         if (socket && socket.status === root.wsOpen && !root.suppressReconnect && !root.connectionResetQueued)
                             socket.reconnect();
                     }
@@ -1056,7 +1069,7 @@ Singleton {
     }
 
     function hassLanguage() {
-        const locale = I18n.currentLocale || Qt.locale().name || "en";
+        const locale = SessionData.locale || Qt.locale().name;
         const normalized = locale.replace("_", "-");
         if (normalized === "zh-CN" || normalized === "zh-Hans-CN" || normalized === "zh")
             return "zh-Hans";
@@ -1096,6 +1109,8 @@ Singleton {
                 category: "entity_component",
                 integration: domain
             }, (response) => {
+                if (language !== hassLanguage())
+                    return;
                 var nextLoading = Object.assign({}, translationDomainsLoading);
                 delete nextLoading[domain];
                 translationDomainsLoading = nextLoading;
@@ -1129,6 +1144,10 @@ Singleton {
     }
 
     function translateEntityState(domain, state) {
+        if (state === "unavailable")
+            return I18n.trFor("homeAssistantMonitor", "Unavailable", "Entity state");
+        if (state === "unknown")
+            return I18n.trFor("homeAssistantMonitor", "Unknown", "Entity state");
         if (!domain || state === undefined || state === null)
             return state || "";
         fetchTranslations([domain]);
@@ -1275,7 +1294,7 @@ Singleton {
 
                         if (!newDevicesCache[root.ungroupedDeviceId]) {
                             newDevicesCache[root.ungroupedDeviceId] = {
-                                name: I18n.tr("Ungrouped", "Device group for entities with no device"),
+                                name: I18n.trFor("homeAssistantMonitor", "Ungrouped", "Device group for entities with no device"),
                                 entityIds: []
                             };
                         }
@@ -1308,7 +1327,7 @@ Singleton {
     }
 
     Component {
-        id: requestRetryTimerComponent
+        id: requestTimerComponent
 
         Timer {
             repeat: false
@@ -1319,7 +1338,7 @@ Singleton {
         const generation = connectionGeneration;
         const baseDelay = Math.min(10000, 500 * Math.pow(2, retryCount));
         const jitter = Math.floor(Math.random() * 250);
-        const retryTimer = requestRetryTimerComponent.createObject(root, {
+        const retryTimer = requestTimerComponent.createObject(root, {
             interval: baseDelay + jitter
         });
 
@@ -1345,12 +1364,19 @@ Singleton {
         var xhr = new XMLHttpRequest();
         var url = hassUrl + endpoint;
         var settled = false;
+        const requestTimer = requestTimerComponent.createObject(root, {
+            interval: Components.HassConstants.httpRequestTimeout
+        });
 
         function fail(status, statusText) {
-            if (settled || generation !== connectionGeneration || suppressReconnect) {
+            if (settled) {
                 return;
             }
             settled = true;
+            requestTimer.stop();
+            requestTimer.destroy();
+            if (generation !== connectionGeneration || suppressReconnect)
+                return;
 
             if (status === 401) {
                 rejectAuthentication();
@@ -1372,15 +1398,16 @@ Singleton {
         }
         
         xhr.onreadystatechange = function() {
-            if (generation !== connectionGeneration || suppressReconnect)
-                return;
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status >= 200 && xhr.status < 300) {
                     if (settled) {
                         return;
                     }
                     settled = true;
-                    if (callback) callback(xhr.responseText, 0);
+                    requestTimer.stop();
+                    requestTimer.destroy();
+                    if (generation === connectionGeneration && !suppressReconnect && callback)
+                        callback(xhr.responseText, 0);
                 } else {
                     fail(xhr.status, xhr.statusText);
                 }
@@ -1390,15 +1417,11 @@ Singleton {
         xhr.open(method, url);
         xhr.setRequestHeader("Authorization", "Bearer " + hassToken);
         xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.timeout = Components.HassConstants.httpRequestTimeout;
-        
-        xhr.ontimeout = function() {
+        requestTimer.triggered.connect(() => {
             fail(408, "Request timed out");
-        }
-
-        xhr.onerror = function() {
-            fail(0, "Network error");
-        }
+            xhr.abort();
+        });
+        requestTimer.start();
 
         if (data) {
             xhr.send(JSON.stringify(data));
@@ -1581,7 +1604,7 @@ Singleton {
                     // Always update to ensure data flow, UI ListModel will handle smoothing
                     haAvailable = true;
                     if (!canUseWebSocketApi()) {
-                        setConnectionState("degraded", I18n.tr("Using REST fallback", "Home Assistant degraded connection"));
+                        setConnectionState("degraded", I18n.trFor("homeAssistantMonitor", "Using REST fallback", "Home Assistant degraded connection"));
                     }
                     updateEntities(monitoredEntities);
                     if (shouldEmitRefreshCompletion) refreshCompleted(true);
@@ -1590,7 +1613,7 @@ Singleton {
                     console.error("HomeAssistantMonitor: Failed to parse HA response:", e);
                     haAvailable = false;
                     PluginService.setGlobalVar(pluginId, "haAvailable", false);  // Notify UI immediately
-                    setConnectionState("offline", I18n.tr("Failed to parse Home Assistant response", "Home Assistant connection error"));
+                    setConnectionState("offline", I18n.trFor("homeAssistantMonitor", "Failed to parse Home Assistant response", "Home Assistant connection error"));
                     // Keep old data, don't clear (consistent with network failure handling)
                     updateEntities(cachedAllEntities);
                     if (shouldEmitRefreshCompletion) refreshCompleted(false);
@@ -1600,7 +1623,7 @@ Singleton {
                 // Keep old data, don't clear
                 haAvailable = false;
                 PluginService.setGlobalVar(pluginId, "haAvailable", false);
-                setConnectionState("offline", I18n.tr("Failed to fetch Home Assistant states", "Home Assistant connection error"));
+                setConnectionState("offline", I18n.trFor("homeAssistantMonitor", "Failed to fetch Home Assistant states", "Home Assistant connection error"));
                 statesFailureBackoffMs = statesFailureBackoffMs > 0
                     ? Math.min(60000, statesFailureBackoffMs * 2)
                     : 5000;
@@ -1754,7 +1777,7 @@ Singleton {
         if (!hassUrl || !hassToken) {
             console.error("HomeAssistantMonitor: Cannot call service - HA not configured");
             if (entityId) {
-                setEntityActionState(entityId, "error", service, I18n.tr("Home Assistant is not configured", "Entity action error"));
+                setEntityActionState(entityId, "error", service, I18n.trFor("homeAssistantMonitor", "Home Assistant is not configured", "Entity action error"));
             }
             return;
         }
@@ -1777,7 +1800,7 @@ Singleton {
             } else {
                 console.error("HomeAssistantMonitor: Service call failed");
                 if (entityId) {
-                    setEntityActionState(entityId, "error", service, I18n.tr("Service call failed", "Entity action error"));
+                    setEntityActionState(entityId, "error", service, I18n.trFor("homeAssistantMonitor", "Service call failed", "Entity action error"));
                     fetchEntity(entityId);
                 }
             }
@@ -2251,7 +2274,7 @@ Singleton {
                     timedOutIds[i].entityId,
                     "success",
                     timedOutIds[i].action,
-                    I18n.tr("Action sent, waiting for Home Assistant state sync", "Entity action status")
+                    I18n.trFor("homeAssistantMonitor", "Action sent, waiting for Home Assistant state sync", "Entity action status")
                 );
             }
 

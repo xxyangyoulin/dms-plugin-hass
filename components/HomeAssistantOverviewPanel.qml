@@ -28,25 +28,25 @@ Rectangle {
 
     readonly property string titleText: {
         if (root.connectionStatus === "auth_error")
-            return I18n.tr("Home Assistant authentication failed", "Home Assistant connection error");
+            return I18n.trFor("homeAssistantMonitor", "Home Assistant authentication failed", "Home Assistant connection error");
         if (root.connectionStatus === "connecting")
-            return I18n.tr("Connecting to Home Assistant", "Home Assistant status");
+            return I18n.trFor("homeAssistantMonitor", "Connecting to Home Assistant", "Home Assistant status");
         if (root.connectionStatus === "degraded")
-            return I18n.tr("Home Assistant connection degraded", "Home Assistant status");
+            return I18n.trFor("homeAssistantMonitor", "Home Assistant connection degraded", "Home Assistant status");
         if (!root.haAvailable)
-            return I18n.tr("Home Assistant unavailable", "Home Assistant connection error");
-        return I18n.tr("Home Assistant", "Home Assistant dashboard title");
+            return I18n.trFor("homeAssistantMonitor", "Home Assistant unavailable", "Home Assistant connection error");
+        return I18n.trFor("homeAssistantMonitor", "Home Assistant", "Home Assistant dashboard title");
     }
 
     readonly property string subtitleText: {
         if (root.connectionStatus === "auth_error")
-            return I18n.tr("Update the token in settings to restore entity updates.", "Home Assistant auth subtitle");
+            return I18n.trFor("homeAssistantMonitor", "Update the token in settings to restore entity updates.", "Home Assistant auth subtitle");
         if (root.connectionStatus === "connecting")
-            return I18n.tr("Authenticating and loading your monitored entities.", "Home Assistant connecting subtitle");
+            return I18n.trFor("homeAssistantMonitor", "Authenticating and loading your monitored entities.", "Home Assistant connecting subtitle");
         if (root.connectionStatus === "degraded")
-            return I18n.tr("The server is reachable, but syncs are taking longer than expected.", "Home Assistant degraded subtitle");
+            return I18n.trFor("homeAssistantMonitor", "The server is reachable, but syncs are taking longer than expected.", "Home Assistant degraded subtitle");
         if (!root.haAvailable)
-            return I18n.tr("Review your URL and access token if the dashboard stays offline.", "Home Assistant offline subtitle");
+            return I18n.trFor("homeAssistantMonitor", "Review your URL and access token if the dashboard stays offline.", "Home Assistant offline subtitle");
         return "";
     }
     readonly property bool showStatusNotice: ["connecting", "degraded", "offline", "auth_error"].indexOf(root.connectionStatus) >= 0
@@ -54,12 +54,12 @@ Rectangle {
         if (root.connectionMessage)
             return root.connectionMessage;
         if (root.connectionStatus === "connecting")
-            return I18n.tr("Connecting to Home Assistant", "Connection banner");
+            return I18n.trFor("homeAssistantMonitor", "Connecting to Home Assistant", "Connection banner");
         if (root.connectionStatus === "degraded")
-            return I18n.tr("Home Assistant connection is unstable", "Connection banner");
+            return I18n.trFor("homeAssistantMonitor", "Home Assistant connection is unstable", "Connection banner");
         if (root.connectionStatus === "auth_error")
-            return I18n.tr("Home Assistant authentication failed", "Connection banner");
-        return I18n.tr("Home Assistant is offline", "Connection banner");
+            return I18n.trFor("homeAssistantMonitor", "Home Assistant authentication failed", "Connection banner");
+        return I18n.trFor("homeAssistantMonitor", "Home Assistant is offline", "Connection banner");
     }
 
     radius: Theme.cornerRadius * 1.2

@@ -19,7 +19,7 @@ Column {
 
         StyledText {
             Layout.fillWidth: true
-            text: I18n.tr("24h History", "Sensor history label")
+            text: I18n.trFor("homeAssistantMonitor", "24h History", "Sensor history label")
             font.pixelSize: Theme.fontSizeSmall
             color: Theme.surfaceVariantText
         }
@@ -46,7 +46,7 @@ Column {
         StyledText {
             anchors.centerIn: parent
             visible: root.loading || root.historyData.length === 0
-            text: root.loading ? I18n.tr("Loading history…") : I18n.tr("No history available")
+            text: root.loading ? I18n.trFor("homeAssistantMonitor", "Loading history…") : I18n.trFor("homeAssistantMonitor", "No history available")
             font.pixelSize: Theme.fontSizeSmall
             color: Theme.surfaceVariantText
         }

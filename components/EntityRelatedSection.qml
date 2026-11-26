@@ -47,7 +47,7 @@ Column {
     visible: root.pickerVisible && (root.isEditing || (root.relatedEntities && root.relatedEntities.length > 0))
 
     StyledText {
-        text: I18n.tr("Connected Entities", "Control label")
+        text: I18n.trFor("homeAssistantMonitor", "Connected Entities", "Control label")
         font.pixelSize: Theme.fontSizeSmall
         color: Theme.surfaceVariantText
     }
@@ -121,7 +121,7 @@ Column {
 
     StyledText {
         visible: root.isEditing && (!root.relatedEntities || root.relatedEntities.length === 0)
-        text: I18n.tr("No connected entities found for this device", "Empty state")
+        text: I18n.trFor("homeAssistantMonitor", "No connected entities found for this device", "Empty state")
         font.pixelSize: Theme.fontSizeSmall
         color: Theme.surfaceVariantText
     }

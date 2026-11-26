@@ -48,7 +48,7 @@ StyledRect {
                 stateText += " · " + Number(targetTemperature).toFixed(1) + temperatureUnit;
             }
         }
-        if (actionError) return stateText + " • " + I18n.tr("Failed", "Entity action failed");
+        if (actionError) return stateText + " • " + I18n.trFor("homeAssistantMonitor", "Failed", "Entity action failed");
         return stateText;
     }
     property var entityActionState: ({ status: "idle", action: "", message: "", updatedAt: 0 })
@@ -351,7 +351,7 @@ StyledRect {
         iconName: entityCard.entityIconName
         effectiveState: entityCard.effectiveState
         stateText: entityCard.stateSummaryText
-        errorText: entityCard.entityActionState.message || I18n.tr("The last action did not complete", "Entity action error detail")
+        errorText: entityCard.entityActionState.message || I18n.trFor("homeAssistantMonitor", "The last action did not complete", "Entity action error detail")
         actionPending: entityCard.actionPending
         actionError: entityCard.actionError
         pendingDotsPhase: entityCard.pendingDotsPhase
@@ -565,8 +565,8 @@ StyledRect {
 
                 StyledText {
                     text: entityCard.showExtraEntityPicker
-                        ? I18n.tr("Hide addable entities", "Button label")
-                        : I18n.tr("Add device entity", "Button label")
+                        ? I18n.trFor("homeAssistantMonitor", "Hide addable entities", "Button label")
+                        : I18n.trFor("homeAssistantMonitor", "Add device entity", "Button label")
                     font.pixelSize: Theme.fontSizeSmall
                     color: Theme.surfaceText
                     anchors.verticalCenter: parent.verticalCenter
@@ -645,7 +645,7 @@ StyledRect {
             width: 32
             height: 32
             iconName: "push_pin"
-            tooltipText: isPinned ? I18n.tr("Unpin from status bar", "Edit action tooltip") : I18n.tr("Pin to status bar", "Edit action tooltip")
+            tooltipText: isPinned ? I18n.trFor("homeAssistantMonitor", "Unpin from status bar", "Edit action tooltip") : I18n.trFor("homeAssistantMonitor", "Pin to status bar", "Edit action tooltip")
             iconSize: 16
             iconColor: isPinned ? (Theme.primary || "transparent") : Theme.surfaceText
             backgroundColor: isPinned ? (Theme.primary || "transparent") : (Theme.surfaceContainerHigh || "transparent")
@@ -661,7 +661,7 @@ StyledRect {
             // Toggle: always shown  <->  only shown on the bar when the entity is "active"
             // (state is not off/idle/none/closed/empty). Full op set lives in EntityHelper.entityVisible.
             iconName: showWhenActive ? "filter_alt" : "visibility"
-            tooltipText: showWhenActive ? I18n.tr("Always show on status bar", "Edit action tooltip") : I18n.tr("Show on status bar only when active", "Edit action tooltip")
+            tooltipText: showWhenActive ? I18n.trFor("homeAssistantMonitor", "Always show on status bar", "Edit action tooltip") : I18n.trFor("homeAssistantMonitor", "Show on status bar only when active", "Edit action tooltip")
             iconSize: 16
             iconColor: showWhenActive ? (Theme.primary || "transparent") : Theme.surfaceText
             backgroundColor: showWhenActive ? (Theme.primary || "transparent") : (Theme.surfaceContainerHigh || "transparent")
@@ -673,7 +673,7 @@ StyledRect {
             width: 32
             height: 32
             iconName: "vertical_align_top"
-            tooltipText: I18n.tr("Move to top", "Edit action tooltip")
+            tooltipText: I18n.trFor("homeAssistantMonitor", "Move to top", "Edit action tooltip")
             iconSize: 16
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
@@ -684,7 +684,7 @@ StyledRect {
             width: 32
             height: 32
             iconName: "arrow_upward"
-            tooltipText: I18n.tr("Move up", "Edit action tooltip")
+            tooltipText: I18n.trFor("homeAssistantMonitor", "Move up", "Edit action tooltip")
             iconSize: 16
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
@@ -695,7 +695,7 @@ StyledRect {
             width: 32
             height: 32
             iconName: "arrow_downward"
-            tooltipText: I18n.tr("Move down", "Edit action tooltip")
+            tooltipText: I18n.trFor("homeAssistantMonitor", "Move down", "Edit action tooltip")
             iconSize: 16
             iconColor: Theme.surfaceText
             backgroundColor: Theme.surfaceContainerHigh || "transparent"
@@ -707,7 +707,7 @@ StyledRect {
             height: 32
             iconName: "close"
             iconSize: 14
-            tooltipText: I18n.tr("Remove from monitored entities", "Edit action tooltip")
+            tooltipText: I18n.trFor("homeAssistantMonitor", "Remove from monitored entities", "Edit action tooltip")
             iconColor: Theme.primaryText
             backgroundColor: Theme.error || "transparent"
             onClicked: entityCard.removeEntity()

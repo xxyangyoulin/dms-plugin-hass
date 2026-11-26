@@ -83,7 +83,7 @@ Column {
 
             StyledText {
                 visible: root.showSectionLabels
-                text: HomeAssistantService.translateAttributeName("fan", "percentage", I18n.tr("Speed", "Control label"))
+                text: HomeAssistantService.translateAttributeName("fan", "percentage", I18n.trFor("homeAssistantMonitor", "Speed", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -114,7 +114,7 @@ Column {
 
             StyledText {
                 visible: root.showSectionLabels
-                text: HomeAssistantService.translateAttributeName("fan", "percentage", I18n.tr("Speed", "Control label"))
+                text: HomeAssistantService.translateAttributeName("fan", "percentage", I18n.trFor("homeAssistantMonitor", "Speed", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -143,7 +143,7 @@ Column {
 
             StyledText {
                 visible: root.showSectionLabels
-                text: HomeAssistantService.translateAttributeName("fan", "oscillating", I18n.tr("Oscillation", "Control label"))
+                text: HomeAssistantService.translateAttributeName("fan", "oscillating", I18n.trFor("homeAssistantMonitor", "Oscillation", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }
@@ -166,7 +166,7 @@ Column {
                     }
 
                     StyledText {
-                        text: parent.parent.sectionData.value ? I18n.tr("On", "State label") : I18n.tr("Off", "State label")
+                        text: parent.parent.sectionData.value ? I18n.trFor("homeAssistantMonitor", "On", "State label") : I18n.trFor("homeAssistantMonitor", "Off", "State label")
                         font.pixelSize: Theme.fontSizeSmall
                         font.weight: Font.Medium
                         color: parent.parent.sectionData.value ? root.selectedForegroundColor : Theme.surfaceText

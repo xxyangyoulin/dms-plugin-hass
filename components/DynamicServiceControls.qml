@@ -61,7 +61,7 @@ Column {
     visible: editableServices.length > 0
     
     StyledText {
-        text: I18n.tr("Service Controls", "Section label")
+        text: I18n.trFor("homeAssistantMonitor", "Service Controls", "Section label")
         font.pixelSize: Theme.fontSizeSmall
         font.weight: Font.Medium
         color: Theme.surfaceVariantText
@@ -145,7 +145,7 @@ Column {
                 }
                 
                 StyledText {
-                    text: parent.parent.currentVal ? I18n.tr("On", "State label") : I18n.tr("Off", "State label")
+                    text: parent.parent.currentVal ? I18n.trFor("homeAssistantMonitor", "On", "State label") : I18n.trFor("homeAssistantMonitor", "Off", "State label")
                     font.pixelSize: Theme.fontSizeSmall
                     font.weight: Font.Medium
                     color: parent.parent.currentVal ? root.selectedForegroundColor : Theme.surfaceText

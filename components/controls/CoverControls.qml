@@ -68,7 +68,7 @@ Column {
 
             StyledText {
                 visible: root.showSectionLabels
-                text: HomeAssistantService.translateAttributeName("cover", "current_position", I18n.tr("Position", "Control label"))
+                text: HomeAssistantService.translateAttributeName("cover", "current_position", I18n.trFor("homeAssistantMonitor", "Position", "Control label"))
                 font.pixelSize: Theme.fontSizeSmall
                 color: Theme.surfaceVariantText
             }

@@ -564,7 +564,7 @@ PluginComponent {
         if (root.manualRefreshInProgress) return;
         root.manualRefreshInProgress = true;
         HomeAssistantService.refresh();
-        ToastService.showInfo(I18n.tr("Refreshing Home Assistant entities...", "Entity refresh notification"));
+        ToastService.showInfo(I18n.trFor("homeAssistantMonitor", "Refreshing Home Assistant entities...", "Entity refresh notification"));
     }
 
     function setEntityIcon(entityId, iconName) {
