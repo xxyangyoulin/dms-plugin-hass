@@ -634,6 +634,64 @@ Singleton {
         savePersistentPluginValue("shortcuts", list);
     }
 
+    property var runningCombinations: ({})
+
+    function saveCombination(id, name, actions) {
+        const list = Array.from(shortcuts);
+        const item = {id: id || "combination:" + Date.now() + ":" + Math.random().toString(36).slice(2),
+            name: name.trim(), domain: "combination", actions: JSON.parse(JSON.stringify(actions))};
+        const index = list.findIndex(s => s.id === item.id);
+        if (index >= 0) list[index] = item;
+        else list.push(item);
+        shortcuts = list;
+        _syncShortcutsModel();
+        savePersistentPluginValue("shortcuts", list);
+    }
+
+    function runCombination(id) {
+        if (runningCombinations[id]) return;
+        const shortcut = shortcuts.find(s => s.id === id);
+        if (!shortcut) return;
+        const actions = JSON.parse(JSON.stringify(shortcut.actions));
+        runningCombinations = Object.assign({}, runningCombinations, {[id]: true});
+        const failures = [];
+        const generation = connectionGeneration;
+        function finish() {
+            const running = Object.assign({}, runningCombinations);
+            delete running[id];
+            runningCombinations = running;
+            if (failures.length)
+                ToastService.showError(shortcut.name, failures.join("\n"));
+            else
+                ToastService.showInfo(shortcut.name, I18n.trFor("homeAssistantMonitor", "Commands submitted"));
+        }
+        function next(index) {
+            if (generation !== connectionGeneration || suppressReconnect) {
+                failures.push(I18n.trFor("homeAssistantMonitor", "Connection interrupted"));
+                finish();
+                return;
+            }
+            if (index >= actions.length) { finish(); return; }
+            const action = actions[index];
+            let settled = false;
+            const timer = requestTimerComponent.createObject(root, {
+                interval: Components.HassConstants.httpRequestTimeout + Components.HassConstants.callbackTimeout
+            });
+            function complete(success, message) {
+                if (settled) return;
+                settled = true;
+                timer.stop();
+                timer.destroy();
+                if (!success) failures.push(action.label + ": " + message);
+                Qt.callLater(() => next(index + 1));
+            }
+            timer.triggered.connect(() => complete(false, I18n.trFor("homeAssistantMonitor", "Request timed out")));
+            timer.start();
+            callService(action.domain, action.service, action.entityId, action.data, complete);
+        }
+        next(0);
+    }
+
     function removeShortcut(entityId) {
         var list = shortcuts.filter(s => s.id !== entityId);
         shortcuts = list;
@@ -1732,7 +1790,12 @@ Singleton {
         scheduleMonitoredEntitiesSync();
     }
 
-    function callService(domain, service, entityId, serviceData) {
+    function callService(domain, service, entityId, serviceData, completion) {
+        serviceData = Object.assign({}, serviceData || {});
+        if (connectionResetQueued || suppressReconnect) {
+            if (completion) completion(false, I18n.trFor("homeAssistantMonitor", "Connection interrupted"));
+            return;
+        }
         if (canUseWebSocketApi()) {
             const msg = {
                 type: "call_service",
@@ -1753,6 +1816,7 @@ Singleton {
                 if (!response || response.success === false) {
                     const errorMessage = formatServiceError(response, "Service call failed");
                     console.error("HomeAssistantMonitor: WebSocket Service call failed:", errorMessage);
+                    if (completion) completion(false, errorMessage);
                     if (entityId) {
                         setEntityActionState(entityId, "error", service, errorMessage);
                         fetchEntity(entityId);
@@ -1770,12 +1834,14 @@ Singleton {
                         actionStateTimeoutTimer.start();
                     }
                 }
+                if (completion) completion(true, "");
             });
             return;
         }
 
         if (!hassUrl || !hassToken) {
             console.error("HomeAssistantMonitor: Cannot call service - HA not configured");
+            if (completion) completion(false, I18n.trFor("homeAssistantMonitor", "Home Assistant is not configured"));
             if (entityId) {
                 setEntityActionState(entityId, "error", service, I18n.trFor("homeAssistantMonitor", "Home Assistant is not configured", "Entity action error"));
             }
@@ -1796,9 +1862,11 @@ Singleton {
                     setEntityActionState(entityId, "success", service, "");
                 }
                 // Refresh only this entity to avoid UI jitter
-                fetchEntity(entityId); 
+                fetchEntity(entityId);
+                if (completion) completion(true, "");
             } else {
                 console.error("HomeAssistantMonitor: Service call failed");
+                if (completion) completion(false, I18n.trFor("homeAssistantMonitor", "Service call failed"));
                 if (entityId) {
                     setEntityActionState(entityId, "error", service, I18n.trFor("homeAssistantMonitor", "Service call failed", "Entity action error"));
                     fetchEntity(entityId);

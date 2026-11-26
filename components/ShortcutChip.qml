@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import qs.Common
 import qs.Services
 import qs.Widgets
@@ -13,6 +14,10 @@ StyledRect {
     property bool isEditing: false
     property bool isRenaming: false
     readonly property color hoverTintColor: Theme.primary || Theme.surfaceText
+
+    signal requestEditCombination()
+    readonly property bool isCombination: shortcutData && shortcutData.domain === "combination"
+    readonly property bool running: isCombination && !!HomeAssistantService.runningCombinations[shortcutData.id]
 
     signal requestDelete()
     signal requestRename(string newName)
@@ -54,7 +59,7 @@ StyledRect {
         z: 2
         
         DIcon {
-            name: parent.visible ? HassConstants.getIconForDomain(shortcutData.domain) : ""
+            name: root.isCombination ? "playlist_play" : (parent.visible ? HassConstants.getIconForDomain(shortcutData.domain) : "")
             size: 15
             color: Theme.surfaceVariantText
             anchors.verticalCenter: parent.verticalCenter
@@ -62,7 +67,7 @@ StyledRect {
 
         StyledText {
             visible: !root.isRenaming
-            text: parent.visible ? shortcutData.name : ""
+            text: parent.visible ? shortcutData.name + (root.running ? " …" : "") : ""
             font.pixelSize: Theme.fontSizeSmall
             font.weight: Font.Medium
             color: Theme.surfaceText
@@ -151,6 +156,13 @@ StyledRect {
         }
     }
     
+    ToolTip.visible: mouseArea.containsMouse && root.isCombination && !isEditing
+    ToolTip.delay: 1500
+    ToolTip.text: {
+        const item = HomeAssistantService.shortcuts.find(s => s.id === shortcutData.id);
+        return item && item.actions ? item.actions.map(a => a.label).join("\n") : "";
+    }
+
     // Ripple effect
     Rectangle {
         id: feedback
@@ -174,7 +186,7 @@ StyledRect {
         enabled: !isRenaming
 
         onDoubleClicked: {
-            if (isEditing) {
+            if (isEditing && !root.isCombination) {
                 isRenaming = true
                 nameInput.forceActiveFocus()
                 nameInput.selectAll()
@@ -182,6 +194,11 @@ StyledRect {
         }
 
         onClicked: {
+            if (root.isCombination) {
+                if (isEditing) root.requestEditCombination();
+                else if (!root.running) HomeAssistantService.runCombination(shortcutData.id);
+                return;
+            }
             if (!isEditing) {
                 // Normal mode: trigger action
                 if (!shortcutData) return;

@@ -2,15 +2,18 @@ import QtQuick
 import QtQuick.Layouts
 import qs.Common
 import qs.Widgets
+import qs.DCommon.Widgets
 import "../services"
 import "."
 
 Column {
     id: shortcutsGridRoot
 
+    signal requestEditCombination(string shortcutId)
+
     property bool isEditing: false
     readonly property int chipHeight: 44
-    readonly property int shortcutCount: HomeAssistantService.shortcutsModel.count
+    readonly property int shortcutCount: HomeAssistantService.shortcutsModel.count + (isEditing ? 1 : 0)
     readonly property int rowCount: shortcutCount > 0 ? Math.ceil(shortcutCount / Math.max(1, shortcutsGrid.columns)) : 0
     readonly property int contentHeight: topSpacer.height
         + (rowCount > 0 ? rowCount * chipHeight + Math.max(0, rowCount - 1) * shortcutsGrid.rowSpacing : 0)
@@ -61,6 +64,7 @@ Column {
                 Layout.fillWidth: true
                 Layout.minimumWidth: 100
 
+                onRequestEditCombination: shortcutsGridRoot.requestEditCombination(entityId)
                 onLongPressed: shortcutsGridRoot.isEditing = true
 
                 onRequestDelete: {
@@ -78,6 +82,17 @@ Column {
                     }
                 }
             }
+        }
+
+        DButton {
+            visible: shortcutsGridRoot.isEditing
+            Layout.fillWidth: true
+            Layout.minimumWidth: 100
+            maximumWidth: shortcutsGrid.width
+            buttonHeight: 40
+            variant: "tonal"
+            text: I18n.trFor("homeAssistantMonitor", "+ Add combination")
+            onClicked: shortcutsGridRoot.requestEditCombination("")
         }
     }
 

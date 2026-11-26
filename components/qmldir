@@ -16,3 +16,4 @@ HomeAssistantIconPickerOverlay 1.0 HomeAssistantIconPickerOverlay.qml
 SegmentedControl 1.0 SegmentedControl.qml
 DynamicServiceControls 1.0 DynamicServiceControls.qml
 EntityDetailOverlay 1.0 EntityDetailOverlay.qml
+CombinationEditor 1.0 CombinationEditor.qml

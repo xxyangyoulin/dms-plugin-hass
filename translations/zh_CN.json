@@ -234,7 +234,7 @@
     "Options": "选项"
   },
   "Oscillation": {
-    "Oscillation": "摆动"
+    "Oscillation": "摇头"
   },
   "Pin frequently used entities to the status bar after adding them.": {
     "Pin frequently used entities to the status bar after adding them.": "添加实体后，可将常用实体固定到状态栏。"
@@ -382,5 +382,89 @@
   },
   "items": {
     "items": "项"
+  },
+  "+ Add combination": {
+    "+ Add combination": "+ 添加组合按钮"
+  },
+  "Edit combination": {
+    "Edit combination": "编辑组合按钮"
+  },
+  "Button name": {
+    "Button name": "按钮名称"
+  },
+  "Remove action": {
+    "Remove action": "删除动作"
+  },
+  "Unspecified properties stay unchanged": {
+    "Unspecified properties stay unchanged": "未指定的属性保持不变；需要开机时请添加电源或工作模式动作。"
+  },
+  "Search entities": {
+    "Search entities": "搜索实体"
+  },
+  "Select entity": {
+    "Select entity": "选择实体"
+  },
+  "Update action": {
+    "Update action": "更新动作"
+  },
+  "Add action": {
+    "Add action": "添加动作"
+  },
+  "Commands submitted": {
+    "Commands submitted": "指令已提交"
+  },
+  "Connection interrupted": {
+    "Connection interrupted": "连接中断"
+  },
+  "Request timed out": {
+    "Request timed out": "请求超时"
+  },
+  "Power": {
+    "Power": "电源"
+  },
+  "Mode": {
+    "Mode": "工作模式"
+  },
+  "Fan speed": {
+    "Fan speed": "风速"
+  },
+  "Preset": {
+    "Preset": "预设"
+  },
+  "Swing": {
+    "Swing": "扫风"
+  },
+  "Speed (%)": {
+    "Speed (%)": "转速 (%)"
+  },
+  "Temperature": {
+    "Temperature": "温度"
+  },
+  "Option": {
+    "Option": "选项"
+  },
+  "Level": {
+    "Level": "档位"
+  },
+  "Step": {
+    "Step": "步长"
+  },
+  "Save": {
+    "Save": "保存"
+  },
+  "Cancel": {
+    "Cancel": "取消"
+  },
+  "Search and select entity": {
+    "Search and select entity": "搜索并选择实体"
+  },
+  "No matching entities": {
+    "No matching entities": "没有匹配的实体"
+  },
+  "Added actions": {
+    "Added actions": "已添加的动作"
+  },
+  "Edit action": {
+    "Edit action": "编辑动作"
   }
 }

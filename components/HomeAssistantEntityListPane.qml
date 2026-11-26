@@ -6,6 +6,8 @@ import "../services"
 Column {
     id: root
 
+    signal requestEditCombination(string shortcutId)
+
     property var entities: []
     property bool haAvailable: false
     property int globalEntityCount: 0
@@ -105,7 +107,7 @@ Column {
     EmptyState {
         width: parent.width
         height: Math.max(260, root.height)
-        visible: (root.entities || []).length === 0
+        visible: (root.entities || []).length === 0 && !root.isEditing && HomeAssistantService.shortcutsModel.count === 0
         haAvailable: root.haAvailable
         connectionStatus: root.connectionStatus
         connectionMessage: root.connectionMessage
@@ -116,7 +118,7 @@ Column {
         id: entityList
         width: parent.width
         height: root.height
-        visible: (root.entities || []).length > 0
+        visible: (root.entities || []).length > 0 || root.isEditing || HomeAssistantService.shortcutsModel.count > 0
         spacing: Theme.spacingS
         clip: true
         cacheBuffer: 180
@@ -162,6 +164,7 @@ Column {
 
             ShortcutsGrid {
                 id: shortcutsRow
+                onRequestEditCombination: shortcutId => root.requestEditCombination(shortcutId)
                 width: parent.width
                 visible: parent.isShortcutRow
                 isEditing: root.isEditing

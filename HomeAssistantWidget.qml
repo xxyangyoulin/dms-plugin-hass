@@ -37,7 +37,8 @@ PluginComponent {
     readonly property bool editModeTwoColumns: pluginData.editModeTwoColumns !== false
     readonly property bool showTwoColumnEditLayout: isEditing && showEntityBrowser && editModeTwoColumns
     readonly property bool useStackedEditLayout: showEntityBrowser && !showTwoColumnEditLayout
-    readonly property int activePopoutWidth: showTwoColumnEditLayout ? expandedPopoutWidth : compactPopoutWidth
+    property bool isCombinationEditing: false
+    readonly property int activePopoutWidth: (showTwoColumnEditLayout || isCombinationEditing) ? expandedPopoutWidth : compactPopoutWidth
 
     property bool isEditing: false // Global edit mode state
     property bool manualRefreshInProgress: false
@@ -656,12 +657,18 @@ PluginComponent {
                 target: parentPopout
                 function onShouldBeVisibleChanged() {
                     if (parentPopout && !parentPopout.shouldBeVisible) {
+                        combinationEditor.close();
                         root.resetPopoutState();
                     }
                 }
             }
 
             Keys.onPressed: event => {
+                if (combinationEditor.visible) {
+                    if (event.key === Qt.Key_Escape) combinationEditor.close();
+                    event.accepted = true;
+                    return;
+                }
                 if (root.iconPickerEntityId) {
                     if (event.key === Qt.Key_Escape)
                         root.closeIconPicker();
@@ -700,7 +707,7 @@ PluginComponent {
             Column {
                 id: popoutColumn
                 opacity: 1 - detailOverlay.opacity
-                enabled: !detailOverlay.visible
+                enabled: !detailOverlay.visible && !combinationEditor.visible
                 width: parent.width - Theme.spacingM * 2
                 x: Theme.spacingM
                 y: Theme.spacingM
@@ -758,7 +765,7 @@ PluginComponent {
                             ? (root.useStackedEditLayout ? contentFrame.stackedBrowserHeight : parent.height)
                             : 0
                         visible: root.showEntityBrowser
-                        x: 0
+                        x: root.useStackedEditLayout ? 0 : root.rightColumnWidth + Theme.spacingS
                         y: 0
 
                         HomeAssistantBrowserPane {
@@ -779,11 +786,10 @@ PluginComponent {
 
                     HomeAssistantEntityListPane {
                         id: rightColumn
+                        onRequestEditCombination: shortcutId => combinationEditor.open(shortcutId)
                         width: root.useStackedEditLayout ? parent.width : root.rightColumnWidth
                         height: parent.height - contentFrame.stackedListOffset
-                        x: root.showEntityBrowser && !root.useStackedEditLayout
-                            ? root.browserColumnWidth + Theme.spacingS
-                            : 0
+                        x: 0
                         y: contentFrame.stackedListOffset
                         entities: globalEntities.value || []
                         haAvailable: !!globalHaAvailable.value
@@ -817,6 +823,14 @@ PluginComponent {
                         onRequestRemoveExtra: (mainEntityId, extraEntityId) => root.removeDeviceExtraEntity(mainEntityId, extraEntityId)
                     }
                 }
+            }
+
+            CombinationEditor {
+                id: combinationEditor
+                onVisibleChanged: root.isCombinationEditing = visible
+                anchors.fill: parent
+                z: 20
+                allEntities: globalAllEntities.value || []
             }
 
             EntityDetailOverlay {

@@ -2,7 +2,7 @@
     "id": "homeAssistantMonitor",
     "name": "Home Assistant Monitor",
     "description": "Monitor and display Home Assistant entity states in your status bar",
-    "version": "3.1.6",
+    "version": "3.1.7",
     "author": "xxyangyoulin",
     "type": "widget",
     "capabilities": ["dankbar"],
